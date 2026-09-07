@@ -57,7 +57,7 @@
 
 ## 최근 자동 탐색·지식iN 프롬프트 저장
 
-같은 브라우저에서 최근 생성한 작성 프롬프트 한 세트를 localStorage에 보존합니다.
+같은 브라우저에서는 최근 생성한 작성 프롬프트 한 세트를 localStorage에 보존합니다.
 
 - `reviewPrompt`
 - 지식iN `sourceQuestion`
@@ -66,5 +66,16 @@
 - 자동 탐색 seed/cooldown/warning
 - 입력한 지식iN URL
 
-페이지를 새로고침하거나 같은 브라우저에서 다시 열어도 마지막 작업을 복원합니다.
-서버·Notion에는 프롬프트 전문을 별도로 저장하지 않습니다.
+Focused Research에서 지식iN URL로 직접 조사한 경우에는 생성된 `reviewPrompt`를 해당 Notion 페이지의 **본문 전체**로도 저장합니다. 기존 자동 수집 페이지에 있던 공개 카테고리·내부 분류·점수·에버그린·질문 원문 등의 본문 중복 표시는 제거되고, 해당 정보는 상단 데이터베이스 속성에만 유지됩니다.
+
+Notion 본문은 `ChatGPT Pro 작성 프롬프트` 코드 블록 전용 영역으로 사용하므로, Notion에서 프롬프트 전체를 복사해 ChatGPT Pro에 붙여넣는 흐름으로 운영합니다.
+
+### Next.js 실행 환경의 Notion 변수
+
+GitHub Actions Secrets는 Next.js/Vercel 런타임으로 자동 전달되지 않습니다. Focused Research 버튼에서 Notion 저장을 사용하려면 앱 실행 환경에도 다음 값을 설정해야 합니다.
+
+- `NOTION_API_KEY`
+- `NOTION_DATA_SOURCE_ID`
+- `NOTION_URL_PROPERTY` — 선택 사항. 현재 데이터베이스의 URL 속성명이 `원문 URL`이 아니라면 지정
+
+로컬 개발은 `.env.local`, Vercel 배포는 Project Settings → Environment Variables에 같은 값을 넣습니다.

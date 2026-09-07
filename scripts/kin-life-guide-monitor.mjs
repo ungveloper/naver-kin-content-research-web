@@ -832,44 +832,14 @@ async function createNotionPage(candidate, props) {
   setExistingSelect(properties, props.area, candidate.area);
   setExistingSelect(properties, props.status, "검토 전");
 
-  const bodyLines = [
-    `**공개 카테고리:** 생활 가이드`,
-    `**내부 분류:** ${candidate.area}`,
-    `**스크립트 검토 점수:** ${scoreToPercent(candidate.totalScore, MAX_RAW_SCORE)}/100 · 내부 raw ${candidate.totalScore.toFixed(1)}/${MAX_RAW_SCORE}`,
-    `**에버그린 힌트:** ${scoreToPercent(candidate.evergreenScore, MAX_EVERGREEN_SCORE)}/100 · 내부 raw ${candidate.evergreenScore}/${MAX_EVERGREEN_SCORE}`,
-    `**반복 수요 힌트:** 독립 URL ${candidate.independentQuestionCount}건`,
-    `**최신성 힌트:** 지식iN 최신순 결과 ${candidate.dateRank}위에서 신규 발견`,
-    `**탐색어:** ${candidate.matchedSeeds.join(" · ")}`,
-    "",
-    `**질문 원문 내용**`,
-    candidate.questionText
-      || "원문 질문 내용을 자동으로 확인하지 못했습니다. 원문 URL에서 직접 확인해주세요.",
-    `**질문 내용 수집 방식:** ${candidate.questionTextSource === "page-body" ? "원문 본문 영역" : candidate.questionTextSource === "meta-description" ? "원문 meta description 대체" : "확인 실패"}`,
-    "",
-    `**원문**`,
-    candidate.link,
-  ];
-  if (candidate.relatedTitles.length) {
-    bodyLines.push("", "**유사 독립 질문**", ...candidate.relatedTitles.map((title) => `- ${title}`));
-  }
-  bodyLines.push(
-    "",
-    "**판단 주의**",
-    "이 페이지는 GitHub Actions의 규칙 기반 1차 필터를 통과한 ‘검토 후보’입니다. 최종 주제 선정·공식 원문 검증·중복 콘텐츠 검사는 기존 content-topic-research-web + ChatGPT Pro 단계에서 다시 수행하세요.",
-  );
-
   await notionFetch("/v1/pages", {
     method: "POST",
     body: {
       parent: { type: "data_source_id", data_source_id: process.env.NOTION_DATA_SOURCE_ID },
       properties,
-      children: bodyLines.filter((line) => line !== "").map((line) => ({
-        object: "block",
-        type: "paragraph",
-        paragraph: { rich_text: richText(line, 1800) },
-      })),
     },
   });
+
 }
 
 function setExistingSelect(properties, prop, value) {
