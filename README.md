@@ -129,3 +129,77 @@ Notion의 `PATCH /v1/pages/{page_id}/markdown` 전체 교체는 Integration의 *
 다만 본문을 매번 깨끗하게 **전체 교체**하려면 Notion Developer/Integration 설정에서 해당 연결에 Update content 권한도 허용하는 것을 권장합니다. 데이터베이스 자체도 그 Integration에 연결/공유되어 있어야 합니다.
 
 Vercel과 GitHub Actions가 서로 다른 `NOTION_API_KEY`를 사용하면 권한 상태도 달라질 수 있으므로, 두 실행 환경이 의도한 동일 Integration token을 사용하는지 확인합니다.
+
+## 편집 시스템 v1 — 규칙 추가보다 측정·분류·피드백
+
+이 프로젝트는 더 이상 프롬프트 규칙을 무한히 늘리는 방향으로 운영하지 않습니다. 핵심 원칙은 **규칙 압축, 공통 실행 경로, 결과 측정, 발행 후 피드백**입니다.
+
+### 1. 프롬프트 버전
+
+모든 자동/직접 URL 최종 프롬프트에는 `PROMPT_VERSION`이 포함됩니다. 현재 버전은 `2026-09-07.v1`입니다. 버전이 바뀌면 Notion의 `프롬프트 버전` 속성에도 기록해 어떤 규칙으로 작성된 글인지 추적할 수 있습니다.
+
+### 2. 독립 글 가치 판정
+
+최종 원고 전에 반드시 아래 중 하나로 분류합니다.
+
+- `standalone-post`: 독립 WordPress 글
+- `existing-post-update`: 신규 URL 대신 기존 글 업데이트
+- `kin-answer-only`: 독립 글로 억지 확장하지 않고 지식iN 답변만
+- `reject`: 자동 제작 제외
+
+앱은 Evidence와 기존 글 중복도를 사용해 `preflight` 사전 판정을 제공하고, ChatGPT Pro가 공식 근거를 재검증한 뒤 최종 결정을 내립니다.
+
+### 3. im-not-ai 경량화
+
+`vendor/im-not-ai`의 upstream snapshot과 MIT 라이선스는 그대로 보존합니다. 다만 매 프롬프트에 전체 룰북을 반복 삽입하지 않고 `IM_NOT_AI_PROJECT_POLICY`의 프로젝트 전용 핵심 규칙만 사용합니다. 원 질문·사실 검증·SEO보다 문체 규칙이 더 큰 토큰 비중을 차지하지 않게 하기 위한 조치입니다.
+
+### 4. 기존 WordPress 중복 검사
+
+WordPress REST API에서 최대 500개의 제목·URL·수정일과 excerpt를 가져옵니다. 각 신규 Evidence Bundle과 유사도를 로컬에서 먼저 계산하고 가장 가까운 최대 8개만 editorialContext에 남깁니다. 전체 500개를 프롬프트에 직접 밀어 넣지 않습니다.
+
+### 5. Notion 품질 추적
+
+권한이 허용되면 다음 데이터베이스 속성을 자동 생성합니다.
+
+- 프롬프트 버전
+- 초안 유형
+- 사전 품질 점수
+- 공식 근거 후보 수
+- 중복도
+- 최종 판정
+- 질문 충족
+- 게시 보류 사유
+- 게시 URL
+- 게시일
+- 30일 노출 / 클릭 / CTR / 평균순위
+
+Notion 구조 변경 권한이 없으면 프롬프트 저장 자체는 중단하지 않고 추적 속성 생성만 건너뜁니다.
+
+### 6. 공통 Focused Research 실행
+
+GitHub Actions가 더 이상 `npm run dev`로 Next.js 서버를 띄운 뒤 HTTP로 자기 자신을 호출하지 않습니다. `scripts/focused-research-cli.ts`가 실제 `/api/site-content`, `/api/research/auto`, `/api/notion/prompt` route handler를 직접 호출합니다.
+
+따라서 자동 후보와 사용자가 `지식iN 원문으로 바로 조사`에 넣은 URL은 동일한 코드 경로를 사용하면서도 서버 준비 대기·포트·dev server 실패 지점은 제거됩니다.
+
+### 7. Search Console 피드백 루프
+
+기존 CSV 업로드 방식은 계속 사용할 수 있습니다. 추가로 서비스 계정 자격증명이 있으면 GitHub Actions가 최근 30일 Search Console query 데이터를 자동으로 불러와 다음 Focused Research의 `searchPerformance`에 넣습니다.
+
+Notion에서 사람이 `게시 URL`을 입력하면 별도 `Content Performance Feedback` workflow가 최근 30일 페이지 성과를 매일 갱신합니다.
+
+필요한 설정:
+
+- Secret `GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL`
+- Secret `GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY` 또는 `GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY_BASE64`
+- Variable `GOOGLE_SEARCH_CONSOLE_SITE_URL` — Search Console에 등록된 정확한 property 값. 예: `sc-domain:3minago.com` 또는 URL-prefix property
+- Variable `CONTENT_FEEDBACK_MAX_PAGES` — 선택 사항, 기본 50
+
+Google 서비스 계정 이메일을 해당 Search Console property 사용자로 추가해야 합니다.
+
+### 운영 피드백
+
+최종 흐름은 다음과 같습니다.
+
+NAVER API 발견 → 1차 점수 → 원문 확인 → 독립 글 가치 사전 판정 → 기존 WordPress 중복 검사 → Evidence 수집 → 질문/공식 근거/SEO/저가치/im-not-ai/교차검증 → Notion 최종 프롬프트 → ChatGPT Pro → 사람 검수/WordPress 게시 → 게시 URL 기록 → 최근 30일 Search Console 성과 회수 → 다음 후보 판단에 반영
+
+Search Console/AdSense/SEO 관련 검수는 품질을 높이기 위한 신호이며 검색 순위나 AdSense 승인을 보장하지 않습니다.

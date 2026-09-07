@@ -1,0 +1,42 @@
+name: Content Performance Feedback
+
+on:
+  schedule:
+    - cron: '47 4 * * *'
+      timezone: 'Asia/Seoul'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: content-performance-feedback
+  cancel-in-progress: false
+
+jobs:
+  feedback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync 30-day Search Console performance to Notion
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
+          GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL: ${{ secrets.GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL }}
+          GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY: ${{ secrets.GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY }}
+          GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY_BASE64: ${{ secrets.GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY_BASE64 }}
+          GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL }}
+          CONTENT_FEEDBACK_MAX_PAGES: ${{ vars.CONTENT_FEEDBACK_MAX_PAGES }}
+        run: ./node_modules/.bin/tsx scripts/content-performance-feedback.ts
