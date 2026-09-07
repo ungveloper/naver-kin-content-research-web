@@ -428,6 +428,7 @@ export function ResearchWorkbench() {
   const [kinSourceUrl, setKinSourceUrl] = useState("");
   const [kinUrlResearchLoading, setKinUrlResearchLoading] = useState(false);
   const [kinUrlResearchError, setKinUrlResearchError] = useState<string | null>(null);
+  const [notionPromptPageUrl, setNotionPromptPageUrl] = useState("");
   const [autoSourceQuestion, setAutoSourceQuestion] = useState<AutoResearchResponse["sourceQuestion"] | null>(null);
   const [usedTopics, setUsedTopics] = useState<UsedTopicHistory[]>([]);
   const [sessionNow] = useState(() => Date.now());
@@ -938,15 +939,58 @@ export function ResearchWorkbench() {
     setKinUrlResearchLoading(true);
     setKinUrlResearchError(null);
     setAutoResearchError(null);
+    setNotionPromptPageUrl("");
+
     try {
       const { normalizedBundles, data } = await executeResearch(0, sourceUrl);
-      if (!normalizedBundles.length || !data.reviewPrompt) {
+      if (!normalizedBundles.length || !data.reviewPrompt || !data.sourceQuestion) {
         setKinUrlResearchError(
-          (Array.isArray(data.errors) && data.errors[0]) || "원문은 확인했지만 심사에 넘길 Evidence Bundle을 만들지 못했습니다.",
+          (Array.isArray(data.errors) && data.errors[0])
+            || "원문은 확인했지만 작성 프롬프트를 만들지 못했습니다.",
+        );
+        return;
+      }
+
+      try {
+        const notionResponse = await fetch("/api/notion/prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceUrl,
+            reviewPrompt: data.reviewPrompt,
+            sourceQuestion: data.sourceQuestion,
+          }),
+        });
+        const notionData = (await notionResponse.json()) as {
+          ok?: boolean;
+          pageUrl?: string;
+          error?: string;
+        };
+
+        if (!notionResponse.ok) {
+          setKinUrlResearchError(
+            notionData.error
+              || "프롬프트는 생성됐지만 Notion 저장에 실패했습니다.",
+          );
+          setToast("프롬프트는 앱에 보존됐지만 Notion 저장은 완료되지 않았습니다.");
+          return;
+        }
+
+        setNotionPromptPageUrl(notionData.pageUrl || "");
+        setToast("작성 프롬프트를 Notion에 저장했습니다. Notion에서 복사해 ChatGPT Pro에 붙여넣으세요.");
+      } catch (error) {
+        setKinUrlResearchError(
+          error instanceof Error
+            ? `프롬프트는 생성됐지만 Notion 저장에 실패했습니다: ${error.message}`
+            : "프롬프트는 생성됐지만 Notion 저장에 실패했습니다.",
         );
       }
     } catch (error) {
-      setKinUrlResearchError(error instanceof Error ? error.message : "지식iN 원문 조사를 시작하지 못했습니다.");
+      setKinUrlResearchError(
+        error instanceof Error
+          ? error.message
+          : "지식iN 원문 조사를 시작하지 못했습니다.",
+      );
     } finally {
       setKinUrlResearchLoading(false);
     }
@@ -1451,7 +1495,7 @@ export function ResearchWorkbench() {
                 <SectionTitle
                   eyebrow="Focused Research"
                   title="지식iN 원문으로 바로 조사"
-                  description="Notion에서 괜찮은 질문을 골랐거나 직접 발견한 지식iN 질문이 있다면 원문 URL 하나만 붙여넣으세요. 해당 질문을 고정 출발점으로 유사 독립 질문·검색어트렌드·카페·블로그·뉴스·웹문서를 다시 수집하고, ChatGPT Pro에서는 별도 후보 선택 없이 품질 검증과 공식 원문 재검증을 거쳐 통과 시 바로 WordPress 최종 아웃풋까지 작성합니다."
+                  description="Notion에서 고른 지식iN 질문 URL을 붙여넣고 조사하세요. 원문 질문과 관련 근거를 수집해 최종 작성 프롬프트를 만든 뒤 같은 Notion 페이지의 본문을 해당 프롬프트로 교체해 저장합니다. 이후 Notion에서 프롬프트 전체를 복사해 ChatGPT Pro에 붙여넣으면 됩니다."
                 />
                 <form
                   className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_180px]"
@@ -1492,12 +1536,22 @@ export function ResearchWorkbench() {
                   </button>
                 </form>
                 <p className="mt-2 break-words text-[11px] leading-5 text-zinc-400 [overflow-wrap:anywhere]">
-                  URL을 넣으면 후보 선택 단계는 생략합니다. 다만 품질 검증은 생략하지 않으며, 같은 문제의 반복 수요·에버그린성·공식 근거·기존 글 중복을 다시 확인한 뒤 통과한 경우에만 ChatGPT Pro가 바로 WordPress 최종 아웃풋을 작성합니다.
+                  URL을 넣으면 후보 선택 단계는 생략합니다. 프롬프트 생성이 끝나면 Notion 상단 속성은 그대로 유지하고, 중복되던 본문 영역은 ChatGPT Pro 작성 프롬프트 전용 영역으로 교체합니다.
                 </p>
                 {kinUrlResearchError ? (
                   <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
                     {kinUrlResearchError}
                   </div>
+                ) : null}
+                {notionPromptPageUrl ? (
+                  <a
+                    href={notionPromptPageUrl}
+                    target="_blank"
+                    rel="noopener"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:border-zinc-300 hover:text-zinc-950"
+                  >
+                    Notion에서 작성 프롬프트 열기 <ExternalIcon className="h-3 w-3" />
+                  </a>
                 ) : null}
                 {autoSourceQuestion ? (
                   <div className="mt-3 rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
