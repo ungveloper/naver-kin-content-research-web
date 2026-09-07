@@ -139,9 +139,9 @@ function resolveNotionProperties(properties: Record<string, NotionProperty>) {
       ["발견일시", "발견 일시", "발견일", "수집일", "Created"],
       "date",
     ),
-    summary: findProperty(
+    question: findProperty(
       entries,
-      ["질문 요약", "요약", "Summary"],
+      ["질문", "질문 요약", "요약", "Summary"],
       "rich_text",
     ),
     category: findProperty(entries, ["카테고리", "Category"], "select"),
@@ -154,12 +154,6 @@ function resolveNotionProperties(properties: Record<string, NotionProperty>) {
     finalDecision: findProperty(entries, ["최종 판정"], "select"),
     questionSatisfied: findProperty(entries, ["질문 충족"], "checkbox"),
     holdReason: findProperty(entries, ["게시 보류 사유"], "rich_text"),
-    publishedUrl: findProperty(entries, ["게시 URL"], "url"),
-    publishedAt: findProperty(entries, ["게시일"], "date"),
-    impressions30d: findProperty(entries, ["30일 노출"], "number"),
-    clicks30d: findProperty(entries, ["30일 클릭"], "number"),
-    ctr30d: findProperty(entries, ["30일 CTR"], "number"),
-    position30d: findProperty(entries, ["30일 평균순위"], "number"),
     pipelineStatus: findProperty(entries, ["파이프라인 상태"], "select"),
     lastError: findProperty(entries, ["마지막 오류"], "rich_text"),
     retryCount: findProperty(entries, ["재시도 횟수"], "number"),
@@ -331,6 +325,28 @@ async function updateTrackingPropertiesBestEffort(
         : String(error)
     }`;
   }
+}
+
+function fullQuestionRichText(content: string) {
+  const value = String(content || "");
+  const chunkSize = 1800;
+  const maxItems = 100;
+  const chunks: Array<{ type: "text"; text: { content: string } }> = [];
+
+  for (let index = 0; index < value.length; index += chunkSize) {
+    chunks.push({
+      type: "text",
+      text: { content: value.slice(index, index + chunkSize) },
+    });
+  }
+
+  if (chunks.length > maxItems) {
+    throw new Error(
+      `질문 본문이 Notion rich_text 한도를 넘습니다 (${value.length}자). 일부만 저장하지 않고 중단했습니다.`,
+    );
+  }
+
+  return chunks;
 }
 
 function richTextChunks(
@@ -616,9 +632,9 @@ async function createOrUpdateNotionPage(
     [resolved.url.name]: { url: canonicalUrl },
   };
 
-  if (resolved.summary) {
-    properties[resolved.summary.name] = {
-      rich_text: richTextChunks(sourceQuestion.questionText, 1800, 8000),
+  if (resolved.question) {
+    properties[resolved.question.name] = {
+      rich_text: fullQuestionRichText(sourceQuestion.questionText),
     };
   }
 

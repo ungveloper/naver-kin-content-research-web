@@ -130,7 +130,7 @@ async function main() {
     );
   }
 
-  await backfillMissingQuestionSummaries(notionProperties);
+  await backfillMissingQuestions(notionProperties);
 
   const selectedSeeds = rotatingSeedBatch();
   console.log(`[KIN monitor] ${selectedSeeds.length}개 탐색어 조회 · 기준점수 ${SCORE_THRESHOLD}`);
@@ -177,8 +177,8 @@ async function main() {
     }
 
     if (existingPage) {
-      if (candidate.questionText && notionProperties.summary) {
-        await updateNotionQuestionSummary(existingPage.id, candidate, notionProperties);
+      if (candidate.questionText && notionProperties.question) {
+        await updateNotionQuestion(existingPage.id, candidate, notionProperties);
       }
 
       await updatePipelineState(
@@ -491,9 +491,7 @@ function normalizeQuestionText(value) {
   return htmlToText(value)
     .replace(/^질문\s*/i, "")
     .replace(/\s*답변\s*\d+개[\s\S]*$/i, "")
-    .trim()
-    // 비정상적으로 큰 페이지 전체 텍스트가 들어오는 사고만 막고 일반 질문 본문은 끝까지 보존합니다.
-    .slice(0, 8000);
+    .trim();
 }
 
 function extractKinQuestionTitle(html) {
@@ -766,7 +764,7 @@ function resolveNotionProperties(properties) {
     score: findProperty(entries, ["점수", "우선순위 점수", "Score"], "number"),
     evergreen: findProperty(entries, ["에버그린", "Evergreen"], "number"),
     demand: findProperty(entries, ["유사 질문", "독립 질문", "반복 수요"], "number"),
-    summary: findProperty(entries, ["질문 요약", "요약", "Summary"], "rich_text"),
+    question: findProperty(entries, ["질문", "질문 요약", "요약", "Summary"], "rich_text"),
     category: findProperty(entries, ["카테고리", "Category"], "select"),
     area: findProperty(entries, ["내부 분류", "주제 영역", "Topic Area"], "select"),
     status: findProperty(entries, ["상태", "Status"], ["select", "status"]),
@@ -875,10 +873,12 @@ async function findNotionPageByUrl(url, propertyName) {
   return Array.isArray(result?.results) ? result.results[0] || null : null;
 }
 
-async function updateNotionQuestionSummary(pageId, candidate, props) {
-  if (!pageId || !props.summary || !candidate.questionText) return;
+async function updateNotionQuestion(pageId, candidate, props) {
+  if (!pageId || !props.question || !candidate.questionText) return;
   const properties = {
-    [props.summary.name]: { rich_text: richTextChunks(candidate.questionText, 1800, 8000) },
+    [props.question.name]: {
+      rich_text: fullQuestionRichText(candidate.questionText),
+    },
   };
   await notionFetch(`/v1/pages/${encodeURIComponent(pageId)}`, {
     method: "PATCH",
@@ -886,16 +886,26 @@ async function updateNotionQuestionSummary(pageId, candidate, props) {
   });
 }
 
-async function backfillMissingQuestionSummaries(props) {
-  if (!props.summary || !props.url || !props.title) return;
+async function backfillMissingQuestions(props) {
+  if (!props.question || !props.url || !props.title) return;
 
   const result = await notionFetch(`/v1/data_sources/${encodeURIComponent(process.env.NOTION_DATA_SOURCE_ID)}/query`, {
     method: "POST",
     body: {
       page_size: 10,
       filter: {
-        property: props.summary.name,
-        rich_text: { contains: "원문 질문 본문을 자동으로 확인하지 못했습니다" },
+        or: [
+          {
+            property: props.question.name,
+            rich_text: { is_empty: true },
+          },
+          {
+            property: props.question.name,
+            rich_text: {
+              contains: "원문 질문 본문을 자동으로 확인하지 못했습니다",
+            },
+          },
+        ],
       },
     },
   });
@@ -903,7 +913,7 @@ async function backfillMissingQuestionSummaries(props) {
   const pages = Array.isArray(result?.results) ? result.results : [];
   if (!pages.length) return;
 
-  console.log(`[KIN monitor] 기존 질문 요약 backfill ${pages.length}건 확인`);
+  console.log(`[KIN monitor] 기존 '질문' 본문 backfill ${pages.length}건 확인`);
 
   for (const page of pages) {
     const url = page?.properties?.[props.url.name]?.url || "";
@@ -920,10 +930,10 @@ async function backfillMissingQuestionSummaries(props) {
     });
 
     if (candidate.questionText) {
-      await updateNotionQuestionSummary(page.id, candidate, props);
-      console.log(`[KIN monitor] 기존 질문 요약 backfill 완료: ${candidate.title}`);
+      await updateNotionQuestion(page.id, candidate, props);
+      console.log(`[KIN monitor] 기존 '질문' 본문 backfill 완료: ${candidate.title}`);
     } else {
-      console.warn(`[KIN monitor] 기존 질문 요약 backfill 실패: ${url}`);
+      console.warn(`[KIN monitor] 기존 '질문' 본문 backfill 실패: ${url}`);
     }
 
     await sleep(360);
@@ -1102,10 +1112,10 @@ async function createNotionPage(candidate, props) {
   if (props.score) properties[props.score.name] = { number: scoreToPercent(candidate.totalScore, MAX_RAW_SCORE) };
   if (props.evergreen) properties[props.evergreen.name] = { number: scoreToPercent(candidate.evergreenScore, MAX_EVERGREEN_SCORE) };
   if (props.demand) properties[props.demand.name] = { number: candidate.independentQuestionCount };
-  if (props.summary) {
-    const summary = candidate.questionText
-      || "원문 질문 내용을 자동으로 확인하지 못했습니다. 원문 URL에서 직접 확인이 필요합니다.";
-    properties[props.summary.name] = { rich_text: richTextChunks(summary, 1800, 8000) };
+  if (props.question && candidate.questionText) {
+    properties[props.question.name] = {
+      rich_text: fullQuestionRichText(candidate.questionText),
+    };
   }
   setExistingSelect(properties, props.category, "생활 가이드");
   setExistingSelect(properties, props.area, candidate.area);
@@ -1166,6 +1176,28 @@ function richText(content, maxLength) {
     return [{ type: "text", text: { content: bold[1] }, annotations: { bold: true } }];
   }
   return [{ type: "text", text: { content: text } }];
+}
+
+function fullQuestionRichText(content) {
+  const value = String(content || "");
+  const chunkSize = 1800;
+  const maxItems = 100;
+  const chunks = [];
+
+  for (let index = 0; index < value.length; index += chunkSize) {
+    chunks.push({
+      type: "text",
+      text: { content: value.slice(index, index + chunkSize) },
+    });
+  }
+
+  if (chunks.length > maxItems) {
+    throw new Error(
+      `질문 본문이 Notion rich_text 한도를 넘습니다 (${value.length}자). 일부만 저장하지 않고 중단했습니다.`,
+    );
+  }
+
+  return chunks;
 }
 
 function richTextChunks(content, chunkSize = 1800, maxTotal = 8000) {

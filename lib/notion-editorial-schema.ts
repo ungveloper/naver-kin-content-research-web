@@ -1,4 +1,5 @@
 export const NOTION_EDITORIAL_TRACKING_SCHEMA = {
+  "질문": { rich_text: {} },
   "프롬프트 버전": { rich_text: {} },
   "초안 유형": {
     select: {
@@ -27,12 +28,6 @@ export const NOTION_EDITORIAL_TRACKING_SCHEMA = {
   },
   "질문 충족": { checkbox: {} },
   "게시 보류 사유": { rich_text: {} },
-  "게시 URL": { url: {} },
-  "게시일": { date: {} },
-  "30일 노출": { number: { format: "number" } },
-  "30일 클릭": { number: { format: "number" } },
-  "30일 CTR": { number: { format: "percent" } },
-  "30일 평균순위": { number: { format: "number" } },
   "파이프라인 상태": {
     select: {
       options: [
@@ -40,7 +35,6 @@ export const NOTION_EDITORIAL_TRACKING_SCHEMA = {
         { name: "원문 확인" },
         { name: "리서치 중" },
         { name: "프롬프트 준비" },
-        { name: "게시 완료" },
         { name: "보류" },
         { name: "오류" },
       ],

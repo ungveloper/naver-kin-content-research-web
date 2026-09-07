@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { buildEditorialPreflight } from "../lib/editorial-preflight";
 import { shortlistSiteContents } from "../lib/content-index";
 import {
@@ -267,6 +267,69 @@ if (!notionPromptSource.includes("return codeBlocks;")) {
   console.error(
     "[회귀 실패] Notion block fallback이 코드 블록만 반환하지 않습니다.",
   );
+}
+
+const notionSchemaSource = readFileSync(
+  "lib/notion-editorial-schema.ts",
+  "utf8",
+);
+
+if (!notionSchemaSource.includes('"질문": { rich_text: {} }')) {
+  failures += 1;
+  console.error("[회귀 실패] Notion schema에 '질문' rich_text 속성이 없습니다.");
+}
+
+for (const forbidden of [
+  '"게시 URL"',
+  '"게시일"',
+  '"30일 노출"',
+  '"30일 클릭"',
+  '"30일 CTR"',
+  '"30일 평균순위"',
+]) {
+  if (notionSchemaSource.includes(forbidden)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] 프롬프트 전용 운영에서 제거한 발행 후 추적 속성이 남아 있습니다: ${forbidden}`,
+    );
+  }
+}
+
+for (const removedPath of [
+  "scripts/content-performance-feedback.ts",
+  ".github/workflows/content-performance-feedback.yml",
+]) {
+  if (existsSync(removedPath)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] 제거한 Performance Feedback 파일이 다시 생겼습니다: ${removedPath}`,
+    );
+  }
+}
+
+const autoResearchSource = readFileSync(
+  "app/api/research/auto/route.ts",
+  "utf8",
+);
+const kinMonitorSource = readFileSync(
+  "scripts/kin-life-guide-monitor.mjs",
+  "utf8",
+);
+
+if (!notionPromptSource.includes("fullQuestionRichText")) {
+  failures += 1;
+  console.error("[회귀 실패] 직접 URL Notion 저장이 질문 전체 본문 helper를 사용하지 않습니다.");
+}
+if (!kinMonitorSource.includes("fullQuestionRichText")) {
+  failures += 1;
+  console.error("[회귀 실패] 자동 KIN 저장이 질문 전체 본문 helper를 사용하지 않습니다.");
+}
+if (
+  autoResearchSource.includes(".trim()\n    .slice(0, 8000)")
+  || kinMonitorSource.includes(".trim()\n    .slice(0, 8000)")
+) {
+  failures += 1;
+  console.error("[회귀 실패] 질문 추출에 8,000자 잘림이 다시 들어왔습니다.");
 }
 
 if (

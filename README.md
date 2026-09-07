@@ -169,9 +169,6 @@ WordPress REST API에서 최대 500개의 제목·URL·수정일과 excerpt를 �
 - 최종 판정
 - 질문 충족
 - 게시 보류 사유
-- 게시 URL
-- 게시일
-- 30일 노출 / 클릭 / CTR / 평균순위
 
 Notion 구조 변경 권한이 없으면 프롬프트 저장 자체는 중단하지 않고 추적 속성 생성만 건너뜁니다.
 
@@ -181,26 +178,19 @@ GitHub Actions가 더 이상 `npm run dev`로 Next.js 서버를 띄운 뒤 HTTP�
 
 따라서 자동 후보와 사용자가 `지식iN 원문으로 바로 조사`에 넣은 URL은 동일한 코드 경로를 사용하면서도 서버 준비 대기·포트·dev server 실패 지점은 제거됩니다.
 
-### 7. Search Console 피드백 루프
+### 7. Search Console 검색어 신호
 
-기존 CSV 업로드 방식은 계속 사용할 수 있습니다. 추가로 서비스 계정 자격증명이 있으면 GitHub Actions가 최근 30일 Search Console query 데이터를 자동으로 불러와 다음 Focused Research의 `searchPerformance`에 넣습니다.
+Search Console 연결은 **새 프롬프트를 만들 때 현재 사이트의 실제 검색어 성과를 참고하는 용도**로만 사용합니다.
+기존 CSV 업로드 또는 서비스 계정 query 데이터는 Focused Research의 `searchPerformance` 입력으로 활용할 수 있습니다.
 
-Notion에서 사람이 `게시 URL`을 입력하면 별도 `Content Performance Feedback` workflow가 최근 30일 페이지 성과를 매일 갱신합니다.
-
-필요한 설정:
-
-- Secret `GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL`
-- Secret `GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY` 또는 `GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY_BASE64`
-- Variable `GOOGLE_SEARCH_CONSOLE_SITE_URL` — Search Console에 등록된 정확한 property 값. 예: `sc-domain:3minago.com` 또는 URL-prefix property
-- Variable `CONTENT_FEEDBACK_MAX_PAGES` — 선택 사항, 기본 50
-
-Google 서비스 계정 이메일을 해당 Search Console property 사용자로 추가해야 합니다.
+발행 후 개별 WordPress URL의 30일 성과를 Notion에 기록하는 `Content Performance Feedback` workflow는 사용하지 않습니다.
+Notion에 게시 URL을 입력할 필요도 없습니다.
 
 ### 운영 피드백
 
 최종 흐름은 다음과 같습니다.
 
-NAVER API 발견 → 1차 점수 → 원문 확인 → 독립 글 가치 사전 판정 → 기존 WordPress 중복 검사 → Evidence 수집 → 질문/공식 근거/SEO/저가치/im-not-ai/교차검증 → Notion 최종 프롬프트 → ChatGPT Pro → 사람 검수/WordPress 게시 → 게시 URL 기록 → 최근 30일 Search Console 성과 회수 → 다음 후보 판단에 반영
+NAVER API 발견 → 1차 점수 → 원문 확인 → 독립 글 가치 사전 판정 → 기존 WordPress 중복 검사 → Evidence 수집 → 질문/공식 근거/SEO/저가치/im-not-ai/교차검증 → Notion 최종 프롬프트 생성
 
 Search Console/AdSense/SEO 관련 검수는 품질을 높이기 위한 신호이며 검색 순위나 AdSense 승인을 보장하지 않습니다.
 
@@ -286,3 +276,16 @@ ChatGPT Pro 최종 작성 단계에는 다음 정책을 추가했습니다.
 - 지식iN 답변: WordPress 요약본이 아니라 질문자에게 직접 답하는 3~6문장 중심의 짧은 답변
 - 코드 블록: 빈 코드 블록 중복 금지, 각 값은 내용이 있는 코드 블록 1개만 출력
 - 링크 유도: 지식iN 답변만으로 해결되면 블로그 링크를 억지로 넣지 않음
+
+## Notion 질문 원문 저장 · 프롬프트 전용 운영
+
+Notion은 발행 후 성과 관리가 아니라 **질문 원문과 최종 ChatGPT Pro 프롬프트를 보관하는 곳**으로 사용합니다.
+
+- 기존 `질문 요약` 속성 대신 `질문`(rich_text)을 사용합니다.
+- 원문 HTML에서 추출한 질문은 요약하지 않고 전체 본문을 `질문`에 저장합니다.
+- 직접 URL mode와 GitHub Actions 자동 탐색 모두 같은 기준을 사용합니다.
+- 기존 `질문 요약`/`요약` 속성명도 마이그레이션 기간 동안 읽을 수 있지만 새 기준은 `질문`입니다.
+- 질문 본문이 비어 있는 기존 후보는 자동 monitor가 다시 원문을 확인해 `질문` 속성을 채웁니다.
+- `게시 URL`, `게시일`, `30일 노출`, `30일 클릭`, `30일 CTR`, `30일 평균순위`는 자동 생성 schema에서 제거했습니다.
+- `Content Performance Feedback` workflow도 제거했습니다.
+- Search Console query 데이터는 원한다면 새 프롬프트의 주제 판단 신호로만 계속 사용할 수 있습니다.

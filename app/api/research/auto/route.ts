@@ -337,8 +337,7 @@ function normalizeQuestionText(value: string) {
   return htmlToQuestionText(value)
     .replace(/^질문\s*/i, "")
     .replace(/\s*답변\s*\d+개[\s\S]*$/i, "")
-    .trim()
-    .slice(0, 8000);
+    .trim();
 }
 
 function findQuestionNode(value: unknown): Record<string, unknown> | null {
