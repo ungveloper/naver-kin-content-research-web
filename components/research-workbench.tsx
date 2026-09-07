@@ -35,6 +35,7 @@ import type {
   Candidate,
   ContentMode,
   EditorialContext,
+  EditorialPreflight,
   Penalties,
   ResearchEvidenceBundle,
   ScoreInputs,
@@ -87,6 +88,8 @@ type AutoResearchResponse = {
   evidenceBundles: ResearchEvidenceBundle[];
   reviewPrompt: string;
   editorialContext?: EditorialContext;
+  promptVersion?: string;
+  preflight?: EditorialPreflight[];
   sourceQuestion?: {
     url: string;
     title: string;
@@ -961,6 +964,8 @@ export function ResearchWorkbench() {
             sourceUrl,
             reviewPrompt: data.reviewPrompt,
             sourceQuestion: data.sourceQuestion,
+            promptVersion: data.promptVersion,
+            preflight: data.preflight,
           }),
         });
         const notionData = (await notionResponse.json()) as {

@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { EditorialPreflight } from "@/lib/types";
+import {
+  editorialDispositionLabel,
+  NOTION_EDITORIAL_TRACKING_SCHEMA,
+} from "@/lib/notion-editorial-schema";
 
 const NOTION_VERSION = "2026-03-11";
 const MAX_NOTION_MARKDOWN_BYTES = 470_000;
@@ -16,6 +21,8 @@ type SavePromptRequest = {
   sourceUrl?: string;
   reviewPrompt?: string;
   sourceQuestion?: SourceQuestion;
+  promptVersion?: string;
+  preflight?: EditorialPreflight[];
 };
 
 type NotionProperty = {
@@ -139,7 +146,169 @@ function resolveNotionProperties(properties: Record<string, NotionProperty>) {
     ),
     category: findProperty(entries, ["카테고리", "Category"], "select"),
     status: findProperty(entries, ["상태", "Status"], ["select", "status"]),
+    promptVersion: findProperty(entries, ["프롬프트 버전"], "rich_text"),
+    draftType: findProperty(entries, ["초안 유형"], "select"),
+    qualityScore: findProperty(entries, ["사전 품질 점수"], "number"),
+    officialEvidence: findProperty(entries, ["공식 근거 후보 수"], "number"),
+    duplicateSimilarity: findProperty(entries, ["중복도"], "number"),
+    finalDecision: findProperty(entries, ["최종 판정"], "select"),
+    questionSatisfied: findProperty(entries, ["질문 충족"], "checkbox"),
+    holdReason: findProperty(entries, ["게시 보류 사유"], "rich_text"),
+    publishedUrl: findProperty(entries, ["게시 URL"], "url"),
+    publishedAt: findProperty(entries, ["게시일"], "date"),
+    impressions30d: findProperty(entries, ["30일 노출"], "number"),
+    clicks30d: findProperty(entries, ["30일 클릭"], "number"),
+    ctr30d: findProperty(entries, ["30일 CTR"], "number"),
+    position30d: findProperty(entries, ["30일 평균순위"], "number"),
   };
+}
+
+
+async function ensureEditorialTrackingSchema(
+  dataSourceId: string,
+  properties: Record<string, NotionProperty>,
+) {
+  const missing = Object.fromEntries(
+    Object.entries(NOTION_EDITORIAL_TRACKING_SCHEMA).filter(
+      ([name]) => !properties[name],
+    ),
+  );
+
+  if (!Object.keys(missing).length) {
+    return {
+      properties,
+      warning: "",
+    };
+  }
+
+  try {
+    await notionFetch(
+      `/v1/data_sources/${encodeURIComponent(dataSourceId)}`,
+      {
+        method: "PATCH",
+        body: { properties: missing },
+      },
+    );
+
+    const refreshed = (await notionFetch(
+      `/v1/data_sources/${encodeURIComponent(dataSourceId)}`,
+    )) as {
+      properties?: Record<string, NotionProperty>;
+    } | null;
+
+    return {
+      properties: refreshed?.properties || properties,
+      warning: "",
+    };
+  } catch (error) {
+    const warning =
+      error instanceof NotionApiError && error.status === 403
+        ? "Notion Integration에 데이터 소스 구조 변경 권한이 없어 품질 추적 속성 자동 생성은 생략했습니다. 프롬프트 본문 저장은 계속 진행합니다."
+        : `Notion 품질 추적 속성 자동 생성 실패: ${
+            error instanceof Error
+              ? error.message
+              : String(error)
+          }`;
+    return { properties, warning };
+  }
+}
+
+function buildTrackingProperties(
+  resolved: ReturnType<typeof resolveNotionProperties>,
+  promptVersion: string,
+  preflight?: EditorialPreflight[],
+) {
+  const properties: Record<string, unknown> = {};
+  const item = preflight?.[0];
+
+  if (resolved.promptVersion && promptVersion) {
+    properties[resolved.promptVersion.name] = {
+      rich_text: richTextChunks(
+        promptVersion,
+        100,
+        200,
+      ),
+    };
+  }
+
+  if (resolved.draftType && item) {
+    setExistingSelect(
+      properties,
+      resolved.draftType,
+      editorialDispositionLabel(
+        item.recommendedDisposition,
+      ),
+    );
+  }
+
+  if (resolved.qualityScore && item) {
+    properties[resolved.qualityScore.name] = {
+      number: item.qualityScore,
+    };
+  }
+  if (resolved.officialEvidence && item) {
+    properties[resolved.officialEvidence.name] = {
+      number: item.officialEvidenceCount,
+    };
+  }
+  if (resolved.duplicateSimilarity && item) {
+    properties[resolved.duplicateSimilarity.name] = {
+      number: Math.round(
+        item.duplicateSimilarity * 100,
+      ),
+    };
+  }
+
+  if (
+    resolved.holdReason
+    && item
+    && [
+      "existing-post-update",
+      "reject",
+    ].includes(item.recommendedDisposition)
+  ) {
+    properties[resolved.holdReason.name] = {
+      rich_text: richTextChunks(
+        item.rationale,
+        500,
+        1000,
+      ),
+    };
+  }
+
+  return properties;
+}
+
+async function updateTrackingPropertiesBestEffort(
+  pageId: string,
+  properties: Record<string, unknown>,
+) {
+  if (!Object.keys(properties).length) {
+    return "";
+  }
+
+  try {
+    await notionFetch(
+      `/v1/pages/${encodeURIComponent(pageId)}`,
+      {
+        method: "PATCH",
+        body: { properties },
+      },
+    );
+    return "";
+  } catch (error) {
+    if (
+      error instanceof NotionApiError
+      && error.status === 403
+    ) {
+      return "Notion Update content 권한이 없어 품질 추적 속성 값 업데이트는 생략했습니다.";
+    }
+    return `Notion 품질 추적 속성 업데이트 실패: ${
+      error instanceof Error
+        ? error.message
+        : String(error)
+    }`;
+  }
 }
 
 function richTextChunks(
@@ -425,7 +594,15 @@ async function createOrUpdateNotionPage(
     `/v1/data_sources/${encodeURIComponent(dataSourceId)}`,
   )) as { properties?: Record<string, NotionProperty> } | null;
 
-  const resolved = resolveNotionProperties(schema?.properties || {});
+  const trackingSchema =
+    await ensureEditorialTrackingSchema(
+      dataSourceId,
+      schema?.properties || {},
+    );
+  const resolved =
+    resolveNotionProperties(
+      trackingSchema.properties,
+    );
   if (!resolved.title || !resolved.url) {
     throw new Error(
       "Notion 데이터베이스에서 제목 또는 원문 URL 속성을 찾지 못했습니다.",
@@ -484,7 +661,7 @@ async function createOrUpdateNotionPage(
     throw new Error("Notion 페이지를 만들거나 찾지 못했습니다.");
   }
 
-  return { page, canonicalUrl };
+  return { page, canonicalUrl, resolved, trackingWarning: trackingSchema.warning };
 }
 
 export async function POST(request: NextRequest) {
@@ -507,11 +684,38 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { page, canonicalUrl } = await createOrUpdateNotionPage(
+    const {
+      page,
+      canonicalUrl,
+      resolved,
+      trackingWarning,
+    } = await createOrUpdateNotionPage(
       sourceUrl,
       sourceQuestion,
     );
-    const savedBody = await savePromptBody(page.id, reviewPrompt);
+    const savedBody =
+      await savePromptBody(
+        page.id,
+        reviewPrompt,
+      );
+    const trackingProperties =
+      buildTrackingProperties(
+        resolved,
+        body.promptVersion?.trim() || "",
+        Array.isArray(body.preflight)
+          ? body.preflight
+          : [],
+      );
+    const trackingValueWarning =
+      await updateTrackingPropertiesBestEffort(
+        page.id,
+        trackingProperties,
+      );
+    const warning = [
+      savedBody.warning,
+      trackingWarning,
+      trackingValueWarning,
+    ].filter(Boolean).join(" ");
 
     return NextResponse.json({
       ok: true,
@@ -519,7 +723,7 @@ export async function POST(request: NextRequest) {
       pageUrl: page.url || "",
       sourceUrl: canonicalUrl,
       saveMode: savedBody.mode,
-      warning: savedBody.warning,
+      warning,
     });
   } catch (error) {
     const permissionHint =
