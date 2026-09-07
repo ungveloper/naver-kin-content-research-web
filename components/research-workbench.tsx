@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckIcon,
   CopyIcon,
@@ -381,6 +382,7 @@ function CandidateCard({ candidate, active, onOpen, onDelete }: { candidate: Can
 }
 
 export function ResearchWorkbench() {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("discover");
   const [signals, setSignals] = useState<Signal[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -616,7 +618,7 @@ export function ResearchWorkbench() {
     }
 
     clearWorkspaceForHome();
-    window.location.assign("/");
+    router.push("/");
   }
 
   function addSignal(signal: Signal) {

@@ -450,19 +450,6 @@ function extractMetaContent(html, propertyName) {
   return "";
 }
 
-function extractMetaNameContent(html, name) {
-  const escaped = escapeRegExp(name);
-  const patterns = [
-    new RegExp(`<meta[^>]+name=["']${escaped}["'][^>]+content=["']([^"']*)["'][^>]*>`, "i"),
-    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+name=["']${escaped}["'][^>]*>`, "i"),
-  ];
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match?.[1]) return match[1];
-  }
-  return "";
-}
-
 function htmlToText(value) {
   if (!value) return "";
   return decodeHtmlEntities(
@@ -868,10 +855,6 @@ function integerEnv(name, fallback, min, max) {
 
 function requireEnv(name) {
   if (!process.env[name]?.trim()) throw new Error(`필수 환경변수 ${name}가 없습니다.`);
-}
-
-function round1(value) {
-  return Math.round(value * 10) / 10;
 }
 
 function sleep(ms) {
