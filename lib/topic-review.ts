@@ -19,6 +19,9 @@ type ReviewPromptContext = {
     url: string;
     title: string;
     description?: string;
+    questionText: string;
+    questionTextVerified: boolean;
+    questionTextSource: "page-body" | "meta-description";
   };
 };
 
@@ -49,7 +52,8 @@ export function buildTopicReviewPrompt(
 [선택된 지식iN 원문]
 - 제목: ${context.focusedSourceQuestion.title}
 - URL: ${context.focusedSourceQuestion.url}
-- 수집된 원문 설명: ${context.focusedSourceQuestion.description || "없음"}
+- 수집된 질문 본문: ${context.focusedSourceQuestion.questionText}
+- 본문 수집 방식: ${context.focusedSourceQuestion.questionTextVerified ? "원문 HTML 본문 영역" : "원문 meta description 대체"}
 
 [절대 원칙]
 1. 사용자가 URL을 직접 골랐다는 사실만으로 게시를 강행하지 않는다.
@@ -166,7 +170,8 @@ research-verification으로 검증이 충분한 경우에는 아래 4개 상위 
 ## 원문 질문
 - 제목: ${context.focusedSourceQuestion.title}
 - 원문 URL: ${context.focusedSourceQuestion.url}
-- 질문 내용: 가능하면 위 원문 URL을 직접 열어 질문자가 적은 상황과 조건을 확인한다. 질문이 짧으면 필요한 범위에서 핵심 원문을 제시할 수 있지만, 긴 질문은 통째로 복제하지 말고 의미를 바꾸지 않는 짧은 핵심 요약으로 적는다. 원문을 열 수 없다면 수집된 원문 설명 범위만 사용하고 없는 세부사항을 만들지 않는다.
+- 질문 내용: ${context.focusedSourceQuestion.questionText}
+- 위 수집 본문을 원 질문의 기준으로 사용한다. 길다면 의미를 바꾸지 않는 핵심 요약으로 정리하되 제품·상황·시점·이미 시도한 방법처럼 답을 바꾸는 조건은 빠뜨리지 않는다.
 
 ## 추천 답변
 아래 답변은 하나의 text 코드 블록으로 출력해 바로 복사할 수 있게 한다.

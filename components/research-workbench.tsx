@@ -91,6 +91,9 @@ type AutoResearchResponse = {
     url: string;
     title: string;
     description?: string;
+    questionText: string;
+    questionTextVerified: boolean;
+    questionTextSource: "page-body" | "meta-description";
   };
   errors?: string[];
   cooldown?: {
@@ -1427,12 +1430,23 @@ export function ResearchWorkbench() {
                   </div>
                 ) : null}
                 {autoSourceQuestion ? (
-                  <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
-                    <span className="font-medium text-zinc-700">원문 기준 조사</span>
-                    <span className="min-w-0 break-words [overflow-wrap:anywhere]">{autoSourceQuestion.title}</span>
-                    <a href={autoSourceQuestion.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 font-medium text-zinc-500 hover:text-zinc-900">
-                      원문 <ExternalIcon className="h-3 w-3" />
-                    </a>
+                  <div className="mt-3 rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-medium text-zinc-700">원문 기준 조사</span>
+                      <span className="min-w-0 break-words font-medium text-zinc-600 [overflow-wrap:anywhere]">{autoSourceQuestion.title}</span>
+                      <a href={autoSourceQuestion.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 font-medium text-zinc-500 hover:text-zinc-900">
+                        원문 <ExternalIcon className="h-3 w-3" />
+                      </a>
+                    </div>
+                    <div className="mt-3 border-t border-zinc-200 pt-3">
+                      <div className="text-[11px] font-semibold text-zinc-600">질문 내용</div>
+                      <p className="mt-1 max-h-52 overflow-y-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-zinc-500 [overflow-wrap:anywhere]">
+                        {autoSourceQuestion.questionText}
+                      </p>
+                      <div className="mt-2 text-[10px] text-zinc-400">
+                        {autoSourceQuestion.questionTextVerified ? "원문 본문 영역 자동 확인 완료" : "원문 meta description을 대체 내용으로 사용"}
+                      </div>
+                    </div>
                   </div>
                 ) : null}
               </section>
