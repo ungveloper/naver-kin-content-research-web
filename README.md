@@ -110,3 +110,22 @@ GitHub Actions의 자동 경로는 별도의 축약형 프롬프트를 만들지
 - 기존 `NAVER_API_HUB_CLIENT_ID`, `NAVER_API_HUB_CLIENT_SECRET`, `NOTION_API_KEY`, `NOTION_DATA_SOURCE_ID` Secret은 그대로 사용합니다.
 
 이미 Notion에 `검토 전` 상태로 남아 있고 아직 `ChatGPT Pro 작성 프롬프트`가 없는 최근 후보도 실행당 남은 한도 내에서 자동 backfill합니다.
+
+### Notion 403과 프롬프트 본문 저장 권한
+
+Focused Research의 `이 질문 조사하기`는 다음 순서로 동작합니다.
+
+1. 입력한 지식iN URL을 `/api/research/auto`의 `sourceUrl`로 조사
+2. Evidence Bundle과 최종 `reviewPrompt` 생성
+3. 원문 URL이 같은 기존 Notion 페이지 조회
+4. 상단 데이터베이스 속성은 그대로 유지
+5. 해당 페이지 본문을 `ChatGPT Pro 작성 프롬프트`로 저장
+6. 사용자가 Notion에서 프롬프트 전체를 복사해 ChatGPT Pro에 붙여넣기
+
+Notion의 `PATCH /v1/pages/{page_id}/markdown` 전체 교체는 Integration의 **Update content** 권한이 필요합니다. 권한이 없으면 Notion이 `403 Insufficient permissions for this endpoint`를 반환합니다.
+
+현재 코드는 이 403을 감지하면 `PATCH /v1/blocks/{page_id}/children`의 **Insert content** 방식으로 자동 fallback하여 같은 페이지 맨 위에 최종 프롬프트를 저장합니다. 따라서 새 Notion 페이지를 만들 수 있는 Insert content 권한이 이미 있다면 직접 URL 흐름도 프롬프트 저장까지 완료할 수 있습니다.
+
+다만 본문을 매번 깨끗하게 **전체 교체**하려면 Notion Developer/Integration 설정에서 해당 연결에 Update content 권한도 허용하는 것을 권장합니다. 데이터베이스 자체도 그 Integration에 연결/공유되어 있어야 합니다.
+
+Vercel과 GitHub Actions가 서로 다른 `NOTION_API_KEY`를 사용하면 권한 상태도 달라질 수 있으므로, 두 실행 환경이 의도한 동일 Integration token을 사용하는지 확인합니다.

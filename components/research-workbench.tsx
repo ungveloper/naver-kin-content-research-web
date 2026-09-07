@@ -429,6 +429,7 @@ export function ResearchWorkbench() {
   const [kinUrlResearchLoading, setKinUrlResearchLoading] = useState(false);
   const [kinUrlResearchError, setKinUrlResearchError] = useState<string | null>(null);
   const [notionPromptPageUrl, setNotionPromptPageUrl] = useState("");
+  const [notionPromptSaveNotice, setNotionPromptSaveNotice] = useState("");
   const [autoSourceQuestion, setAutoSourceQuestion] = useState<AutoResearchResponse["sourceQuestion"] | null>(null);
   const [usedTopics, setUsedTopics] = useState<UsedTopicHistory[]>([]);
   const [sessionNow] = useState(() => Date.now());
@@ -940,6 +941,7 @@ export function ResearchWorkbench() {
     setKinUrlResearchError(null);
     setAutoResearchError(null);
     setNotionPromptPageUrl("");
+    setNotionPromptSaveNotice("");
 
     try {
       const { normalizedBundles, data } = await executeResearch(0, sourceUrl);
@@ -965,6 +967,8 @@ export function ResearchWorkbench() {
           ok?: boolean;
           pageUrl?: string;
           error?: string;
+          warning?: string;
+          saveMode?: "replace_content" | "prepend_blocks";
         };
 
         if (!notionResponse.ok) {
@@ -977,7 +981,12 @@ export function ResearchWorkbench() {
         }
 
         setNotionPromptPageUrl(notionData.pageUrl || "");
-        setToast("작성 프롬프트를 Notion에 저장했습니다. Notion에서 복사해 ChatGPT Pro에 붙여넣으세요.");
+        setNotionPromptSaveNotice(notionData.warning || "");
+        setToast(
+          notionData.saveMode === "prepend_blocks"
+            ? "작성 프롬프트를 같은 Notion 페이지 맨 위에 저장했습니다."
+            : "작성 프롬프트로 Notion 페이지 본문을 교체했습니다. 그대로 ChatGPT Pro에 붙여넣으세요.",
+        );
       } catch (error) {
         setKinUrlResearchError(
           error instanceof Error
@@ -1536,7 +1545,7 @@ export function ResearchWorkbench() {
                   </button>
                 </form>
                 <p className="mt-2 break-words text-[11px] leading-5 text-zinc-400 [overflow-wrap:anywhere]">
-                  URL을 넣으면 후보 선택 단계는 생략합니다. 프롬프트 생성이 끝나면 Notion 상단 속성은 그대로 유지하고, 중복되던 본문 영역은 ChatGPT Pro 작성 프롬프트 전용 영역으로 교체합니다.
+                  URL을 넣으면 후보 선택 단계는 생략합니다. 프롬프트 생성이 끝나면 같은 원문 URL의 Notion 페이지를 찾아 상단 속성은 그대로 유지하고 본문을 ChatGPT Pro 작성 프롬프트로 저장합니다. Update content 권한이 없으면 같은 페이지 맨 위에 프롬프트를 추가하는 방식으로 자동 전환합니다.
                 </p>
                 {kinUrlResearchError ? (
                   <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
@@ -1552,6 +1561,11 @@ export function ResearchWorkbench() {
                   >
                     Notion에서 작성 프롬프트 열기 <ExternalIcon className="h-3 w-3" />
                   </a>
+                ) : null}
+                {notionPromptSaveNotice ? (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                    {notionPromptSaveNotice}
+                  </div>
                 ) : null}
                 {autoSourceQuestion ? (
                   <div className="mt-3 rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
