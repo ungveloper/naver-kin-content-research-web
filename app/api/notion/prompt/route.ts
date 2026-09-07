@@ -160,6 +160,10 @@ function resolveNotionProperties(properties: Record<string, NotionProperty>) {
     clicks30d: findProperty(entries, ["30일 클릭"], "number"),
     ctr30d: findProperty(entries, ["30일 CTR"], "number"),
     position30d: findProperty(entries, ["30일 평균순위"], "number"),
+    pipelineStatus: findProperty(entries, ["파이프라인 상태"], "select"),
+    lastError: findProperty(entries, ["마지막 오류"], "rich_text"),
+    retryCount: findProperty(entries, ["재시도 횟수"], "number"),
+    lastValidatedAt: findProperty(entries, ["마지막 검증일"], "date"),
   };
 }
 
@@ -256,6 +260,24 @@ function buildTrackingProperties(
       number: Math.round(
         item.duplicateSimilarity * 100,
       ),
+    };
+  }
+
+  if (resolved.pipelineStatus) {
+    setExistingSelect(
+      properties,
+      resolved.pipelineStatus,
+      "프롬프트 준비",
+    );
+  }
+  if (resolved.lastError) {
+    properties[resolved.lastError.name] = {
+      rich_text: [],
+    };
+  }
+  if (resolved.lastValidatedAt) {
+    properties[resolved.lastValidatedAt.name] = {
+      date: { start: new Date().toISOString() },
     };
   }
 

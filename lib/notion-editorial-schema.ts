@@ -33,6 +33,22 @@ export const NOTION_EDITORIAL_TRACKING_SCHEMA = {
   "30일 클릭": { number: { format: "number" } },
   "30일 CTR": { number: { format: "percent" } },
   "30일 평균순위": { number: { format: "number" } },
+  "파이프라인 상태": {
+    select: {
+      options: [
+        { name: "발견" },
+        { name: "원문 확인" },
+        { name: "리서치 중" },
+        { name: "프롬프트 준비" },
+        { name: "게시 완료" },
+        { name: "보류" },
+        { name: "오류" },
+      ],
+    },
+  },
+  "마지막 오류": { rich_text: {} },
+  "재시도 횟수": { number: { format: "number" } },
+  "마지막 검증일": { date: {} },
 } as const;
 
 export function editorialDispositionLabel(

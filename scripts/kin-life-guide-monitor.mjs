@@ -181,9 +181,15 @@ async function main() {
         await updateNotionQuestionSummary(existingPage.id, candidate, notionProperties);
       }
 
+      await updatePipelineState(
+        existingPage.id,
+        notionProperties,
+        "원문 확인",
+      );
+
       const hasPrompt = await notionPageHasFocusedPrompt(existingPage.id);
       if (!hasPrompt && focusedPromptsGenerated < MAX_FOCUSED_PROMPTS_PER_RUN) {
-        if (await generateAndSaveFocusedPrompt(candidate)) focusedPromptsGenerated += 1;
+        if (await generateAndSaveFocusedPrompt(candidate, existingPage.id, notionProperties)) focusedPromptsGenerated += 1;
       } else {
         console.log(`[KIN monitor] 이미 등록됨${hasPrompt ? " · 프롬프트 준비 완료" : ""}: ${candidate.title}`);
       }
@@ -192,12 +198,15 @@ async function main() {
       continue;
     }
 
-    await createNotionPage(candidate, notionProperties);
+    const createdPage = await createNotionPage(
+      candidate,
+      notionProperties,
+    );
     created += 1;
     console.log(`[KIN monitor] Notion 후보 등록: ${candidate.title} · ${scoreToPercent(candidate.totalScore, MAX_RAW_SCORE)}점/100 (raw ${candidate.totalScore.toFixed(1)}/${MAX_RAW_SCORE})`);
 
     if (focusedPromptsGenerated < MAX_FOCUSED_PROMPTS_PER_RUN) {
-      if (await generateAndSaveFocusedPrompt(candidate)) focusedPromptsGenerated += 1;
+      if (await generateAndSaveFocusedPrompt(candidate, createdPage?.id, notionProperties)) focusedPromptsGenerated += 1;
     }
 
     await sleep(360);
@@ -761,6 +770,10 @@ function resolveNotionProperties(properties) {
     category: findProperty(entries, ["카테고리", "Category"], "select"),
     area: findProperty(entries, ["내부 분류", "주제 영역", "Topic Area"], "select"),
     status: findProperty(entries, ["상태", "Status"], ["select", "status"]),
+    pipelineStatus: findProperty(entries, ["파이프라인 상태"], "select"),
+    lastError: findProperty(entries, ["마지막 오류"], "rich_text"),
+    retryCount: findProperty(entries, ["재시도 횟수"], "number"),
+    lastValidatedAt: findProperty(entries, ["마지막 검증일"], "date"),
   };
 }
 
@@ -768,6 +781,85 @@ function findProperty(entries, aliases, types) {
   const allowedTypes = Array.isArray(types) ? types : [types];
   return entries.find((prop) => aliases.includes(prop.name) && allowedTypes.includes(prop.type));
 }
+
+
+async function updatePipelineState(
+  pageId,
+  props,
+  status,
+  errorMessage = "",
+  incrementRetry = false,
+) {
+  if (!pageId) return;
+
+  const properties = {};
+
+  if (props.pipelineStatus) {
+    setExistingSelect(
+      properties,
+      props.pipelineStatus,
+      status,
+    );
+  }
+
+  if (props.lastError) {
+    properties[props.lastError.name] = {
+      rich_text: errorMessage
+        ? richTextChunks(
+            errorMessage,
+            1800,
+            3600,
+          )
+        : [],
+    };
+  }
+
+  if (props.lastValidatedAt) {
+    properties[props.lastValidatedAt.name] = {
+      date: { start: new Date().toISOString() },
+    };
+  }
+
+  if (incrementRetry && props.retryCount) {
+    try {
+      const page = await notionFetch(
+        `/v1/pages/${encodeURIComponent(pageId)}`,
+      );
+      const current =
+        Number(
+          page?.properties?.[props.retryCount.name]?.number,
+        ) || 0;
+      properties[props.retryCount.name] = {
+        number: current + 1,
+      };
+    } catch {
+      properties[props.retryCount.name] = {
+        number: 1,
+      };
+    }
+  }
+
+  if (!Object.keys(properties).length) return;
+
+  try {
+    await notionFetch(
+      `/v1/pages/${encodeURIComponent(pageId)}`,
+      {
+        method: "PATCH",
+        body: { properties },
+      },
+    );
+  } catch (error) {
+    console.warn(
+      `[KIN monitor] 파이프라인 상태 기록 실패: ${
+        error instanceof Error
+          ? error.message
+          : String(error)
+      }`,
+    );
+  }
+}
+
 
 async function findNotionPageByUrl(url, propertyName) {
   const result = await notionFetch(`/v1/data_sources/${encodeURIComponent(process.env.NOTION_DATA_SOURCE_ID)}/query`, {
@@ -838,7 +930,13 @@ async function backfillMissingQuestionSummaries(props) {
   }
 }
 
-async function generateAndSaveFocusedPrompt(candidate) {
+async function generateAndSaveFocusedPrompt(candidate, pageId, props) {
+  await updatePipelineState(
+    pageId,
+    props,
+    "리서치 중",
+  );
+
   try {
     const { stdout, stderr } = await execFileAsync(
       FOCUSED_RESEARCH_CLI,
@@ -867,6 +965,12 @@ async function generateAndSaveFocusedPrompt(candidate) {
       );
     }
 
+    await updatePipelineState(
+      pageId,
+      props,
+      "프롬프트 준비",
+    );
+
     console.log(
       `[KIN monitor] Focused Research → Notion 최종 프롬프트 저장: ${candidate.title}`
       + `${result.pageUrl ? ` · ${result.pageUrl}` : ""}`
@@ -874,6 +978,17 @@ async function generateAndSaveFocusedPrompt(candidate) {
     );
     return true;
   } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+    await updatePipelineState(
+      pageId,
+      props,
+      "오류",
+      message,
+      true,
+    );
     console.warn(
       `[KIN monitor] Focused Research 자동 프롬프트 실패: ${candidate.title} · ${
         error instanceof Error ? error.message : String(error)
@@ -948,7 +1063,11 @@ async function backfillMissingFocusedPrompts(props, limit) {
       ? titleParts.map((item) => item?.plain_text || item?.text?.content || "").join("").trim()
       : "";
 
-    if (await generateAndSaveFocusedPrompt({ link: url, title: title || "지식iN 질문" })) {
+    if (await generateAndSaveFocusedPrompt(
+      { link: url, title: title || "지식iN 질문" },
+      page.id,
+      props,
+    )) {
       generated += 1;
       await sleep(360);
     }
@@ -980,14 +1099,26 @@ async function createNotionPage(candidate, props) {
   setExistingSelect(properties, props.area, candidate.area);
   setExistingSelect(properties, props.status, "검토 전");
 
-  await notionFetch("/v1/pages", {
+  if (props.pipelineStatus) {
+    setExistingSelect(
+      properties,
+      props.pipelineStatus,
+      "원문 확인",
+    );
+  }
+  if (props.lastValidatedAt) {
+    properties[props.lastValidatedAt.name] = {
+      date: { start: new Date().toISOString() },
+    };
+  }
+
+  return notionFetch("/v1/pages", {
     method: "POST",
     body: {
       parent: { type: "data_source_id", data_source_id: process.env.NOTION_DATA_SOURCE_ID },
       properties,
     },
   });
-
 }
 
 function setExistingSelect(properties, prop, value) {

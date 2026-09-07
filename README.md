@@ -203,3 +203,61 @@ Google 서비스 계정 이메일을 해당 Search Console property 사용자로
 NAVER API 발견 → 1차 점수 → 원문 확인 → 독립 글 가치 사전 판정 → 기존 WordPress 중복 검사 → Evidence 수집 → 질문/공식 근거/SEO/저가치/im-not-ai/교차검증 → Notion 최종 프롬프트 → ChatGPT Pro → 사람 검수/WordPress 게시 → 게시 URL 기록 → 최근 30일 Search Console 성과 회수 → 다음 후보 판단에 반영
 
 Search Console/AdSense/SEO 관련 검수는 품질을 높이기 위한 신호이며 검색 순위나 AdSense 승인을 보장하지 않습니다.
+
+## 안정성 v2 — 자동 최신화·전체 글 인덱스·회귀 테스트
+
+### im-not-ai 자동 최신화
+
+`im-not-ai Auto Update` GitHub Actions가 6시간마다 `epoko77-ai/im-not-ai`의 `main` commit SHA를 확인합니다.
+
+새 upstream이 있으면:
+
+1. `quick-rules.md`, MIT LICENSE, upstream metadata 동기화
+2. 최신 quick-rules에서 이 프로젝트에 필요한 핵심 규칙 자동 추출
+3. 24개 편집 판정 회귀 테스트 + BM25 + 프롬프트 정책 검사
+4. `npm run lint`
+5. `npm run build`
+6. `git diff --check`
+
+를 모두 통과한 경우에만 `변경: im-not-ai 최신 규칙 자동 동기화` 커밋을 `main`에 push합니다.
+
+따라서 최신 upstream을 자동 적용하지만, upstream 변경이 빌드나 핵심 편집 판정을 깨뜨리면 기존 검증된 버전이 그대로 유지됩니다.
+
+실제 최종 프롬프트 버전은 `기본 프롬프트 버전 + im-not-ai version + upstream commit 앞 7자리`로 기록되므로 어떤 im-not-ai 규칙으로 만들어졌는지 Notion에서 추적할 수 있습니다.
+
+### WordPress 전체 글 인덱스
+
+Focused Research는 더 이상 최신 500개에서만 중복 글을 찾지 않습니다.
+
+- WordPress REST API에서 최대 10,000개까지 전체 글을 순회
+- title + excerpt + slug를 무료 로컬 BM25 인덱스로 1차 검색
+- 상위 48개만 기존 의미 유사도 계산
+- 최종 최대 8개만 ChatGPT Pro editorialContext에 전달
+
+외부 embedding API나 유료 벡터 데이터베이스는 사용하지 않습니다.
+
+### 회귀 테스트
+
+`scripts/editorial-regression-test.ts`는 최소 다음을 검사합니다.
+
+- `standalone-post` 6개
+- `existing-post-update` 6개
+- `kin-answer-only` 6개
+- `reject` 6개
+- WordPress BM25 관련 글 검색
+- im-not-ai upstream metadata/핵심 규칙
+- 최종 프롬프트의 필수 품질 정책 존재
+- 전체 im-not-ai 룰북이 다시 프롬프트에 통째로 들어가지 않는지
+
+로컬에서는 `npm run test:regression`으로 실행합니다.
+
+### Notion 파이프라인 추적
+
+권한이 허용되면 다음 속성을 추가로 사용합니다.
+
+- 파이프라인 상태: 발견 / 원문 확인 / 리서치 중 / 프롬프트 준비 / 게시 완료 / 보류 / 오류
+- 마지막 오류
+- 재시도 횟수
+- 마지막 검증일
+
+자동 Focused Research가 실패하면 오류 내용과 재시도 횟수를 남기고, 성공하면 `프롬프트 준비` 상태로 바꿉니다.

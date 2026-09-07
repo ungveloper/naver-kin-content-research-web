@@ -30,6 +30,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Ensure Notion editorial tracking schema
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
+        run: ./node_modules/.bin/tsx scripts/ensure-notion-editorial-schema.ts
+
       - name: Sync 30-day Search Console performance to Notion
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
