@@ -3,7 +3,7 @@ import type {
   ResearchEvidenceBundle,
   TopicReviewResult,
 } from "@/lib/types";
-import { PUBLISHING_QUALITY_POLICY, QUESTION_ANSWER_PRIORITY_POLICY } from "@/lib/content-quality";
+import { MULTI_PASS_FINAL_VALIDATION_POLICY, PUBLISHING_QUALITY_POLICY, QUESTION_ANSWER_PRIORITY_POLICY } from "@/lib/content-quality";
 import { IM_NOT_AI_FINAL_PASS_CONTRACT, IM_NOT_AI_QUICK_RULES, IM_NOT_AI_SOURCE } from "@/lib/im-not-ai-humanize";
 
 type ReviewPromptContext = {
@@ -90,6 +90,9 @@ ${IM_NOT_AI_FINAL_PASS_CONTRACT}
 ${IM_NOT_AI_QUICK_RULES}
 
 중요: 위 룰북 안의 Claude/Codex 전용 파일 생성·Python 스크립트 실행·workspace 생성 지시는 현재 ChatGPT Pro 작성 흐름에서는 실행하지 않는다. 여기서는 한국어 탐지·윤문 규칙과 의미 보존·과윤문 방지·자체검증 원칙만 최종 원고에 적용한다.
+
+[최종 다중 검수]
+${MULTI_PASS_FINAL_VALIDATION_POLICY}
 
 [최종 품질 게이트]
 - 첫 1~2문장에서 사용자의 핵심 질문에 직접 답하고, 첫 2~3문단 안에서 필요한 조건·예외까지 정리한다.
@@ -466,6 +469,9 @@ ${IM_NOT_AI_FINAL_PASS_CONTRACT}
 ${IM_NOT_AI_QUICK_RULES}
 
 중요: 위 룰북 안의 Claude/Codex 전용 파일 생성·Python 스크립트 실행·workspace 생성 지시는 현재 ChatGPT Pro 작성 흐름에서는 실행하지 않는다. 여기서는 한국어 탐지·윤문 규칙과 의미 보존·과윤문 방지·자체검증 원칙만 최종 원고에 적용한다.
+
+[최종 다중 검수]
+${MULTI_PASS_FINAL_VALIDATION_POLICY}
 
 [선택 후 최종 WordPress 작성 원칙]
 - 의료·건강·영양, 법률·분쟁, 금융·재정, 전문 안전 작업은 선택되었더라도 원고를 만들지 않는다.
