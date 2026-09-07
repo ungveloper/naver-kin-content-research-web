@@ -5,8 +5,13 @@ import type {
   TopicReviewResult,
 } from "@/lib/types";
 import { MULTI_PASS_FINAL_VALIDATION_POLICY, PUBLISHING_QUALITY_POLICY, QUESTION_ANSWER_PRIORITY_POLICY } from "@/lib/content-quality";
-import { IM_NOT_AI_FINAL_PASS_CONTRACT, IM_NOT_AI_SOURCE } from "@/lib/im-not-ai-humanize";
-import { EDITORIAL_DISPOSITION_POLICY, IM_NOT_AI_PROJECT_POLICY, PROMPT_VERSION } from "@/lib/editorial-policy";
+import { IM_NOT_AI_FINAL_PASS_CONTRACT } from "@/lib/im-not-ai-humanize";
+import {
+  IM_NOT_AI_UPSTREAM_POLICY,
+  IM_NOT_AI_UPSTREAM_SOURCE,
+} from "@/lib/im-not-ai-upstream-policy";
+import { EDITORIAL_DISPOSITION_POLICY, IM_NOT_AI_PROJECT_POLICY } from "@/lib/editorial-policy";
+import { ACTIVE_PROMPT_VERSION } from "@/lib/prompt-version";
 
 type ReviewPromptContext = {
   generatedAt: string;
@@ -42,14 +47,14 @@ export function buildTopicReviewPrompt(
     discoveryScopes: context.seeds,
     cooldown: context.cooldown || null,
     editorialContext: context.editorialContext || null,
-    promptVersion: PROMPT_VERSION,
+    promptVersion: ACTIVE_PROMPT_VERSION,
     preflight: context.preflight || [],
     focusedSourceQuestion: context.focusedSourceQuestion || null,
     bundles,
   });
 
   if (context.focusedSourceQuestion && bundles.length === 1) {
-    return `[프롬프트 버전] ${PROMPT_VERSION}\n\n너는 생활 문제 해결형 사이트의 수석 리서처이자 최종 편집장이다.
+    return `[프롬프트 버전] ${ACTIVE_PROMPT_VERSION}\n\n너는 생활 문제 해결형 사이트의 수석 리서처이자 최종 편집장이다.
 
 이번 요청은 여러 후보 중 하나를 고르는 "주제 심사" 단계가 아니다. 사용자가 네이버 지식iN 원문 질문 하나를 이미 직접 선택했다. 따라서 "오늘의 결론", "추천 포스팅 후보", 순위, 추천 번호, 앱 import용 JSON을 출력하지 않는다.
 
@@ -94,13 +99,16 @@ ${PUBLISHING_QUALITY_POLICY}
 
 [최종 한국어 문체 윤문 — im-not-ai]
 모든 사실 검증·원 질문 대응·WordPress 구조·SEO 작성이 끝난 다음 마지막에만 실행한다.
-사용 규칙 출처: ${IM_NOT_AI_SOURCE.repository} · version ${IM_NOT_AI_SOURCE.version} · commit ${IM_NOT_AI_SOURCE.commit}
+사용 규칙 출처: ${IM_NOT_AI_UPSTREAM_SOURCE.repository} · version ${IM_NOT_AI_UPSTREAM_SOURCE.version} · commit ${IM_NOT_AI_UPSTREAM_SOURCE.commit}
 ${IM_NOT_AI_FINAL_PASS_CONTRACT}
 
 [im-not-ai 프로젝트 전용 경량 규칙]
 ${IM_NOT_AI_PROJECT_POLICY}
 
-원본 전체 룰북은 저장소 vendor/im-not-ai에 버전 고정으로 보존하지만, 프롬프트 비대화를 막기 위해 최종 작성에는 위 압축 규칙만 적용한다.
+[im-not-ai 현재 upstream 자동 동기화 핵심 규칙]
+${IM_NOT_AI_UPSTREAM_POLICY}
+
+원본 전체 룰북은 vendor/im-not-ai에 최신 upstream snapshot으로 보존한다. 실제 프롬프트에는 프로젝트 핵심 정책과 최신 upstream에서 자동 추출한 핵심 규칙만 넣어 프롬프트 비대화를 막는다.
 
 [최종 다중 검수]
 ${MULTI_PASS_FINAL_VALIDATION_POLICY}
@@ -238,7 +246,7 @@ standalone-post로 판정되고 research-verification으로 검증이 충분한 
 ${evidenceJson}`;
   }
 
-  return `[프롬프트 버전] ${PROMPT_VERSION}\n\n너는 생활 문제 해결형 사이트의 수석 리서처이자 편집장이다. 지금은 글을 작성하는 단계가 아니다.
+  return `[프롬프트 버전] ${ACTIVE_PROMPT_VERSION}\n\n너는 생활 문제 해결형 사이트의 수석 리서처이자 편집장이다. 지금은 글을 작성하는 단계가 아니다.
 
 아래 JSON은 Content Topic Research 앱이 NAVER API HUB에서 직접 수집·정리한 오늘 기준의 조사 데이터다.
 앱은 데이터를 모아 정리만 했다. 최종 포스팅 주제의 가치 판단, 우선순위, 직접 테스트 필요 여부는 네가 맡는다.
@@ -490,13 +498,16 @@ ${PUBLISHING_QUALITY_POLICY}
 
 [최종 한국어 문체 윤문 — im-not-ai]
 모든 사실 검증·원 질문 대응·WordPress 구조·SEO 작성이 끝난 다음 마지막에만 실행한다.
-사용 규칙 출처: ${IM_NOT_AI_SOURCE.repository} · version ${IM_NOT_AI_SOURCE.version} · commit ${IM_NOT_AI_SOURCE.commit}
+사용 규칙 출처: ${IM_NOT_AI_UPSTREAM_SOURCE.repository} · version ${IM_NOT_AI_UPSTREAM_SOURCE.version} · commit ${IM_NOT_AI_UPSTREAM_SOURCE.commit}
 ${IM_NOT_AI_FINAL_PASS_CONTRACT}
 
 [im-not-ai 프로젝트 전용 경량 규칙]
 ${IM_NOT_AI_PROJECT_POLICY}
 
-원본 전체 룰북은 저장소 vendor/im-not-ai에 버전 고정으로 보존하지만, 프롬프트 비대화를 막기 위해 최종 작성에는 위 압축 규칙만 적용한다.
+[im-not-ai 현재 upstream 자동 동기화 핵심 규칙]
+${IM_NOT_AI_UPSTREAM_POLICY}
+
+원본 전체 룰북은 vendor/im-not-ai에 최신 upstream snapshot으로 보존한다. 실제 프롬프트에는 프로젝트 핵심 정책과 최신 upstream에서 자동 추출한 핵심 규칙만 넣어 프롬프트 비대화를 막는다.
 
 [최종 다중 검수]
 ${MULTI_PASS_FINAL_VALIDATION_POLICY}
