@@ -441,8 +441,6 @@ function longestBacktickRun(value: string) {
 function buildPromptMarkdown(prompt: string) {
   const fence = "`".repeat(Math.max(4, longestBacktickRun(prompt) + 1));
   return [
-    "## ChatGPT Pro 작성 프롬프트",
-    "",
     `${fence}text`,
     prompt,
     fence,
@@ -512,36 +510,7 @@ function buildPromptBlocks(prompt: string) {
     });
   }
 
-  return [
-    {
-      object: "block",
-      type: "heading_2",
-      heading_2: {
-        rich_text: [
-          {
-            type: "text",
-            text: { content: "ChatGPT Pro 작성 프롬프트" },
-          },
-        ],
-      },
-    },
-    {
-      object: "block",
-      type: "paragraph",
-      paragraph: {
-        rich_text: [
-          {
-            type: "text",
-            text: {
-              content:
-                "아래 프롬프트 전체를 그대로 복사해 ChatGPT Pro에 붙여넣으세요.",
-            },
-          },
-        ],
-      },
-    },
-    ...codeBlocks,
-  ];
+  return codeBlocks;
 }
 
 async function prependPromptBlocks(pageId: string, prompt: string) {

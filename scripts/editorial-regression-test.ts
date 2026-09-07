@@ -234,6 +234,7 @@ for (const required of [
   "IM_NOT_AI_UPSTREAM_POLICY",
   "EDITORIAL_DISPOSITION_POLICY",
   "MULTI_PASS_FINAL_VALIDATION_POLICY",
+  "FINAL_OUTPUT_POLISH_POLICY",
   "ACTIVE_PROMPT_VERSION",
 ]) {
   if (!topicReviewSource.includes(required)) {
@@ -242,6 +243,30 @@ for (const required of [
       `[회귀 실패] topic-review에서 ${required}를 찾지 못했습니다.`,
     );
   }
+}
+
+const notionPromptSource = readFileSync(
+  "app/api/notion/prompt/route.ts",
+  "utf8",
+);
+
+for (const forbidden of [
+  '"## ChatGPT Pro 작성 프롬프트"',
+  '"아래 프롬프트 전체를 그대로 복사해 ChatGPT Pro에 붙여넣으세요."',
+]) {
+  if (notionPromptSource.includes(forbidden)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] Notion prompt route에 제거 대상 안내문이 남아 있습니다: ${forbidden}`,
+    );
+  }
+}
+
+if (!notionPromptSource.includes("return codeBlocks;")) {
+  failures += 1;
+  console.error(
+    "[회귀 실패] Notion block fallback이 코드 블록만 반환하지 않습니다.",
+  );
 }
 
 if (

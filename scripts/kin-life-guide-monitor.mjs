@@ -1009,7 +1009,19 @@ async function notionPageHasFocusedPrompt(pageId) {
   try {
     const result = await notionFetch(`/v1/blocks/${encodeURIComponent(pageId)}/children?page_size=10`);
     const blocks = Array.isArray(result?.results) ? result.results : [];
-    return blocks.some((block) => blockPlainText(block).includes("ChatGPT Pro 작성 프롬프트"));
+    return blocks.some((block) => {
+      const plain = blockPlainText(block);
+
+      // 과거 heading 방식은 중복 backfill 방지를 위해 계속 인식합니다.
+      if (plain.includes("ChatGPT Pro 작성 프롬프트")) return true;
+
+      // 새 방식은 Notion 본문에 코드 블록 프롬프트만 저장합니다.
+      if (block?.type !== "code") return false;
+      return (
+        plain.includes("[프롬프트 버전]")
+        || plain.includes("너는 생활 문제 해결형 사이트의 수석 리서처")
+      );
+    });
   } catch (error) {
     console.warn(`[KIN monitor] Notion 프롬프트 존재 확인 실패: ${pageId} · ${error instanceof Error ? error.message : String(error)}`);
     return false;
