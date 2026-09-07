@@ -43,6 +43,20 @@ function notionConfig() {
   return { apiKey, dataSourceId };
 }
 
+class NotionApiError extends Error {
+  status: number;
+  path: string;
+  code?: string;
+
+  constructor(status: number, path: string, message: string, code?: string) {
+    super(`Notion ${status}: ${message}`);
+    this.name = "NotionApiError";
+    this.status = status;
+    this.path = path;
+    this.code = code;
+  }
+}
+
 async function notionFetch(
   path: string,
   options: { method?: string; body?: unknown } = {},
@@ -60,21 +74,26 @@ async function notionFetch(
     signal: AbortSignal.timeout(20_000),
   });
 
-  const text = await response.text();
+  const responseText = await response.text();
   if (!response.ok) {
-    let message = text.slice(0, 700);
+    let message = responseText.slice(0, 700);
+    let code: string | undefined;
     try {
-      const parsed = JSON.parse(text) as { message?: string };
+      const parsed = JSON.parse(responseText) as {
+        message?: string;
+        code?: string;
+      };
       if (parsed.message) message = parsed.message;
+      if (parsed.code) code = parsed.code;
     } catch {
       // 원문 오류를 그대로 사용합니다.
     }
-    throw new Error(`Notion ${response.status}: ${message}`);
+    throw new NotionApiError(response.status, path, message, code);
   }
 
-  if (!text) return null;
+  if (!responseText) return null;
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(responseText) as unknown;
   } catch {
     return null;
   }
@@ -261,6 +280,142 @@ async function replacePageBodyWithPrompt(pageId: string, prompt: string) {
   });
 }
 
+function promptRichText(content: string, chunkSize = 1800) {
+  const chunks: Array<{
+    type: "text";
+    text: { content: string };
+  }> = [];
+
+  for (let index = 0; index < content.length; index += chunkSize) {
+    chunks.push({
+      type: "text",
+      text: { content: content.slice(index, index + chunkSize) },
+    });
+  }
+  return chunks;
+}
+
+function buildPromptBlocks(prompt: string) {
+  const byteLength = Buffer.byteLength(prompt, "utf8");
+  if (byteLength > 400_000) {
+    throw new Error(
+      `생성 프롬프트가 너무 길어 Notion 블록 fallback으로 저장할 수 없습니다 (${Math.round(
+        byteLength / 1024,
+      )}KB).`,
+    );
+  }
+
+  const richText = promptRichText(prompt);
+  const codeBlocks: Array<Record<string, unknown>> = [];
+  const richTextPerCodeBlock = 80;
+
+  for (let index = 0; index < richText.length; index += richTextPerCodeBlock) {
+    codeBlocks.push({
+      object: "block",
+      type: "code",
+      code: {
+        rich_text: richText.slice(index, index + richTextPerCodeBlock),
+        language: "plain text",
+        caption: [],
+      },
+    });
+  }
+
+  return [
+    {
+      object: "block",
+      type: "heading_2",
+      heading_2: {
+        rich_text: [
+          {
+            type: "text",
+            text: { content: "ChatGPT Pro 작성 프롬프트" },
+          },
+        ],
+      },
+    },
+    {
+      object: "block",
+      type: "paragraph",
+      paragraph: {
+        rich_text: [
+          {
+            type: "text",
+            text: {
+              content:
+                "아래 프롬프트 전체를 그대로 복사해 ChatGPT Pro에 붙여넣으세요.",
+            },
+          },
+        ],
+      },
+    },
+    ...codeBlocks,
+  ];
+}
+
+async function prependPromptBlocks(pageId: string, prompt: string) {
+  const children = buildPromptBlocks(prompt);
+  const batchSize = 50;
+  let position:
+    | { type: "start" }
+    | { type: "after_block"; after_block: { id: string } } = {
+    type: "start",
+  };
+
+  for (let index = 0; index < children.length; index += batchSize) {
+    const batch = children.slice(index, index + batchSize);
+    const result = (await notionFetch(
+      `/v1/blocks/${encodeURIComponent(pageId)}/children`,
+      {
+        method: "PATCH",
+        body: {
+          children: batch,
+          position,
+        },
+      },
+    )) as { results?: Array<{ id?: string }> } | null;
+
+    const inserted = Array.isArray(result?.results) ? result.results : [];
+    const lastId = inserted[inserted.length - 1]?.id;
+    if (lastId) {
+      position = {
+        type: "after_block",
+        after_block: { id: lastId },
+      };
+    }
+  }
+}
+
+async function savePromptBody(pageId: string, prompt: string) {
+  try {
+    await replacePageBodyWithPrompt(pageId, prompt);
+    return {
+      mode: "replace_content" as const,
+      warning: "",
+    };
+  } catch (error) {
+    if (!(error instanceof NotionApiError) || error.status !== 403) {
+      throw error;
+    }
+
+    try {
+      await prependPromptBlocks(pageId, prompt);
+      return {
+        mode: "prepend_blocks" as const,
+        warning:
+          "현재 Notion 연결에 Update content 권한이 없어 본문 전체 교체 대신 같은 페이지 맨 위에 최신 프롬프트를 저장했습니다. Notion Integration에서 Update content 권한을 켜면 이후부터 본문 전체 교체 방식으로 저장됩니다.",
+      };
+    } catch (fallbackError) {
+      if (fallbackError instanceof NotionApiError && fallbackError.status === 403) {
+        throw new Error(
+          "Notion 연결에 프롬프트 본문을 쓸 권한이 없습니다. Integration의 Content capabilities에서 Insert content를 허용하고, 본 데이터베이스가 해당 Integration에 연결되어 있는지 확인해주세요.",
+        );
+      }
+      throw fallbackError;
+    }
+  }
+}
+
 async function createOrUpdateNotionPage(
   sourceUrl: string,
   sourceQuestion: SourceQuestion,
@@ -319,10 +474,10 @@ async function createOrUpdateNotionPage(
       },
     })) as NotionPage | null;
   } else {
-    await notionFetch(`/v1/pages/${encodeURIComponent(page.id)}`, {
-      method: "PATCH",
-      body: { properties },
-    });
+    // 기존 후보의 상단 속성은 GitHub Actions 수집 단계에서 이미 채워집니다.
+    // Focused Research는 같은 페이지의 프롬프트 본문 저장만 담당합니다.
+    // 여기서 properties를 다시 PATCH하면 Update content 권한이 없는
+    // Insert-only Integration에서 불필요한 403이 발생하므로 건드리지 않습니다.
   }
 
   if (!page?.id) {
@@ -356,20 +511,27 @@ export async function POST(request: NextRequest) {
       sourceUrl,
       sourceQuestion,
     );
-    await replacePageBodyWithPrompt(page.id, reviewPrompt);
+    const savedBody = await savePromptBody(page.id, reviewPrompt);
 
     return NextResponse.json({
       ok: true,
       pageId: page.id,
       pageUrl: page.url || "",
       sourceUrl: canonicalUrl,
+      saveMode: savedBody.mode,
+      warning: savedBody.warning,
     });
   } catch (error) {
+    const permissionHint =
+      error instanceof NotionApiError && error.status === 403
+        ? ` 권한이 거부된 endpoint: ${error.path}. Notion Integration의 Content capabilities와 데이터베이스 연결 권한을 확인해주세요.`
+        : "";
+
     return NextResponse.json(
       {
         error:
           error instanceof Error
-            ? `Notion 프롬프트 저장에 실패했습니다: ${error.message}`
+            ? `Notion 프롬프트 저장에 실패했습니다: ${error.message}${permissionHint}`
             : "Notion 프롬프트 저장에 실패했습니다.",
       },
       { status: 502 },
