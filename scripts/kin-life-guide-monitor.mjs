@@ -123,6 +123,8 @@ async function main() {
     );
   }
 
+  await backfillMissingQuestionSummaries(notionProperties);
+
   const selectedSeeds = rotatingSeedBatch();
   console.log(`[KIN monitor] ${selectedSeeds.length}개 탐색어 조회 · 기준점수 ${SCORE_THRESHOLD}`);
 
@@ -155,13 +157,20 @@ async function main() {
   let created = 0;
   for (const rawCandidate of clustered) {
     if (created >= MAX_PAGES_PER_RUN) break;
-    if (await notionHasUrl(rawCandidate.link, notionProperties.url.name)) {
-      console.log(`[KIN monitor] 이미 등록됨: ${rawCandidate.title}`);
+    const existingPage = await findNotionPageByUrl(rawCandidate.link, notionProperties.url.name);
+    const candidate = await hydrateKinQuestion(rawCandidate);
+
+    if (existingPage) {
+      if (candidate.questionText && notionProperties.summary) {
+        await updateNotionQuestionSummary(existingPage.id, candidate, notionProperties);
+        console.log(`[KIN monitor] 기존 Notion 질문 요약 갱신: ${candidate.title}`);
+      } else {
+        console.log(`[KIN monitor] 이미 등록됨: ${rawCandidate.title}`);
+      }
       await sleep(360);
       continue;
     }
 
-    const candidate = await hydrateKinQuestion(rawCandidate);
     const validation = validateHydratedQuestion(candidate);
     if (!validation.ok) {
       console.log(`[KIN monitor] 원문 재검증 제외: ${candidate.title} · ${validation.reason}`);
@@ -210,68 +219,123 @@ async function searchKin(query) {
 
 async function hydrateKinQuestion(candidate) {
   const urls = kinQuestionFetchUrls(candidate.link);
+  const fetchProfiles = [
+    {
+      name: "mobile",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+    },
+    {
+      name: "desktop",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+    },
+  ];
+
   let lastError = "";
+  let bestFallback = "";
+  let bestFallbackTitle = "";
+  let bestFallbackUrl = "";
 
   for (const url of urls) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Accept: "text/html,application/xhtml+xml",
-          "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.5",
-          // 모바일 페이지가 질문 본문을 서버 HTML에 더 안정적으로 포함하는 경우가 있어 모바일 UA를 우선 사용합니다.
-          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
-        },
-        redirect: "follow",
-      });
-      if (!response.ok) {
-        lastError = `HTTP ${response.status}`;
-        continue;
-      }
+    for (const profile of fetchProfiles) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            Accept: "text/html,application/xhtml+xml",
+            "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.5",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+            Referer: "https://kin.naver.com/",
+            "User-Agent": profile.userAgent,
+          },
+          redirect: "follow",
+        });
 
-      const html = await response.text();
-      const questionText = extractKinQuestionText(html);
-      const pageTitle = extractKinQuestionTitle(html);
-      if (!questionText) {
-        lastError = `본문 추출 실패 (${url})`;
-        continue;
-      }
+        if (!response.ok) {
+          lastError = `${profile.name} HTTP ${response.status} (${url})`;
+          continue;
+        }
 
-      return {
-        ...candidate,
-        link: canonicalKinQuestionUrl(candidate.link),
-        title: pageTitle || candidate.title,
-        questionText,
-        questionTextVerified: true,
-        questionSourceUrl: url,
-      };
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
+        const html = await response.text();
+        const pageTitle = extractKinQuestionTitle(html);
+        const questionText = extractKinQuestionText(html);
+
+        if (questionText) {
+          return {
+            ...candidate,
+            link: canonicalKinQuestionUrl(candidate.link),
+            title: pageTitle || candidate.title,
+            questionText,
+            questionTextVerified: true,
+            questionTextSource: "page-body",
+            questionSourceUrl: url,
+          };
+        }
+
+        const metaFallback = extractKinQuestionMetaDescription(html);
+        if (!bestFallback && metaFallback) {
+          bestFallback = metaFallback;
+          bestFallbackTitle = pageTitle || candidate.title;
+          bestFallbackUrl = url;
+        }
+
+        lastError = `본문 영역 추출 실패 (${profile.name} · ${url})`;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
     }
   }
 
   const canonicalUrl = canonicalKinQuestionUrl(candidate.link);
+
+  if (bestFallback) {
+    console.warn(`[KIN monitor] 질문 본문 DOM 추출 실패, 원문 meta description 사용: ${canonicalUrl}`);
+    return {
+      ...candidate,
+      link: canonicalUrl,
+      title: bestFallbackTitle || candidate.title,
+      questionText: bestFallback,
+      questionTextVerified: false,
+      questionTextSource: "meta-description",
+      questionSourceUrl: bestFallbackUrl || canonicalUrl,
+    };
+  }
+
   console.warn(`[KIN monitor] 질문 원문 확인 실패: ${canonicalUrl} · ${lastError || "알 수 없는 오류"}`);
   return {
     ...candidate,
     link: canonicalUrl,
     questionText: "",
     questionTextVerified: false,
+    questionTextSource: "unavailable",
   };
 }
 
 function kinQuestionFetchUrls(value) {
   try {
-    const url = new URL(value);
-    const dirId = url.searchParams.get("dirId") || extractPathPart(url.pathname, "dirs");
-    const docId = url.searchParams.get("docId") || extractPathPart(url.pathname, "docs");
-    if (!docId) return [canonicalKinQuestionUrl(value)];
+    const raw = new URL(value);
+    const dirId = raw.searchParams.get("dirId") || extractPathPart(raw.pathname, "dirs");
+    const docId = raw.searchParams.get("docId") || extractPathPart(raw.pathname, "docs");
+    const d1id = raw.searchParams.get("d1id") || "";
+    const candidates = [raw.toString()];
 
-    const candidates = [];
-    if (dirId) candidates.push(`https://m.kin.naver.com/qna/dirs/${encodeURIComponent(dirId)}/docs/${encodeURIComponent(docId)}`);
-    candidates.push(canonicalKinQuestionUrl(value));
-    if (dirId) {
-      candidates.push(`https://m.kin.naver.com/qna/detail.naver?dirId=${encodeURIComponent(dirId)}&docId=${encodeURIComponent(docId)}`);
+    if (dirId && docId) {
+      candidates.push(`https://m.kin.naver.com/qna/dirs/${encodeURIComponent(dirId)}/docs/${encodeURIComponent(docId)}`);
+      candidates.push(`https://kin.naver.com/qna/dirs/${encodeURIComponent(dirId)}/docs/${encodeURIComponent(docId)}`);
+
+      const desktop = new URL("https://kin.naver.com/qna/detail.naver");
+      if (d1id) desktop.searchParams.set("d1id", d1id);
+      desktop.searchParams.set("dirId", dirId);
+      desktop.searchParams.set("docId", docId);
+      candidates.push(desktop.toString());
+
+      const mobile = new URL("https://m.kin.naver.com/qna/detail.naver");
+      if (d1id) mobile.searchParams.set("d1id", d1id);
+      mobile.searchParams.set("dirId", dirId);
+      mobile.searchParams.set("docId", docId);
+      candidates.push(mobile.toString());
     }
+
+    candidates.push(canonicalKinQuestionUrl(value));
     return [...new Set(candidates.filter(Boolean))];
   } catch {
     return [canonicalKinQuestionUrl(value)];
@@ -309,27 +373,34 @@ function validateHydratedQuestion(candidate) {
 }
 
 function extractKinQuestionText(html) {
-  // 1) 구조화 데이터에 Question 본문이 있으면 가장 먼저 사용합니다.
   const structured = extractQuestionTextFromJsonLd(html);
   if (isUsableQuestionText(structured)) return normalizeQuestionText(structured);
 
-  // 2) PC/모바일 지식iN의 실제 질문 본문 영역을 확인합니다.
-  // 단순 정규식으로 첫 닫는 태그까지만 자르면 중첩 div 때문에 본문이 잘릴 수 있어
-  // 동일 태그의 깊이를 세는 방식으로 전체 요소를 추출합니다.
   const classCandidates = [
     "questionDetail",
     "c-heading__content",
     "question-content",
-    "_endContentsText",
   ];
+
   for (const className of classCandidates) {
     const value = extractHtmlByClass(html, className);
     const extracted = htmlToText(value);
     if (isUsableQuestionText(extracted)) return normalizeQuestionText(extracted);
   }
 
-  // meta description은 검색/공유용으로 중간에 ... 형태로 잘릴 수 있으므로
-  // 질문 본문으로 저장하지 않습니다. 다음 원문 URL 후보를 계속 확인하도록 빈 값을 반환합니다.
+  return "";
+}
+
+function extractKinQuestionMetaDescription(html) {
+  const candidates = [
+    extractMetaContent(html, "og:description"),
+    extractMetaContent(html, "twitter:description"),
+  ];
+
+  for (const value of candidates) {
+    const normalized = normalizeQuestionText(value);
+    if (isUsableQuestionText(normalized)) return normalized;
+  }
   return "";
 }
 
@@ -672,7 +743,7 @@ function findProperty(entries, aliases, types) {
   return entries.find((prop) => aliases.includes(prop.name) && allowedTypes.includes(prop.type));
 }
 
-async function notionHasUrl(url, propertyName) {
+async function findNotionPageByUrl(url, propertyName) {
   const result = await notionFetch(`/v1/data_sources/${encodeURIComponent(process.env.NOTION_DATA_SOURCE_ID)}/query`, {
     method: "POST",
     body: {
@@ -683,7 +754,62 @@ async function notionHasUrl(url, propertyName) {
       },
     },
   });
-  return Array.isArray(result?.results) && result.results.length > 0;
+  return Array.isArray(result?.results) ? result.results[0] || null : null;
+}
+
+async function updateNotionQuestionSummary(pageId, candidate, props) {
+  if (!pageId || !props.summary || !candidate.questionText) return;
+  const properties = {
+    [props.summary.name]: { rich_text: richTextChunks(candidate.questionText, 1800, 8000) },
+  };
+  await notionFetch(`/v1/pages/${encodeURIComponent(pageId)}`, {
+    method: "PATCH",
+    body: { properties },
+  });
+}
+
+async function backfillMissingQuestionSummaries(props) {
+  if (!props.summary || !props.url || !props.title) return;
+
+  const result = await notionFetch(`/v1/data_sources/${encodeURIComponent(process.env.NOTION_DATA_SOURCE_ID)}/query`, {
+    method: "POST",
+    body: {
+      page_size: 10,
+      filter: {
+        property: props.summary.name,
+        rich_text: { contains: "원문 질문 본문을 자동으로 확인하지 못했습니다" },
+      },
+    },
+  });
+
+  const pages = Array.isArray(result?.results) ? result.results : [];
+  if (!pages.length) return;
+
+  console.log(`[KIN monitor] 기존 질문 요약 backfill ${pages.length}건 확인`);
+
+  for (const page of pages) {
+    const url = page?.properties?.[props.url.name]?.url || "";
+    if (!url) continue;
+
+    const titleParts = page?.properties?.[props.title.name]?.title || [];
+    const title = Array.isArray(titleParts)
+      ? titleParts.map((item) => item?.plain_text || item?.text?.content || "").join("").trim()
+      : "";
+
+    const candidate = await hydrateKinQuestion({
+      link: url,
+      title: title || "지식iN 질문",
+    });
+
+    if (candidate.questionText) {
+      await updateNotionQuestionSummary(page.id, candidate, props);
+      console.log(`[KIN monitor] 기존 질문 요약 backfill 완료: ${candidate.title}`);
+    } else {
+      console.warn(`[KIN monitor] 기존 질문 요약 backfill 실패: ${url}`);
+    }
+
+    await sleep(360);
+  }
 }
 
 async function createNotionPage(candidate, props) {
@@ -698,9 +824,8 @@ async function createNotionPage(candidate, props) {
   if (props.evergreen) properties[props.evergreen.name] = { number: scoreToPercent(candidate.evergreenScore, MAX_EVERGREEN_SCORE) };
   if (props.demand) properties[props.demand.name] = { number: candidate.independentQuestionCount };
   if (props.summary) {
-    const summary = candidate.questionTextVerified
-      ? candidate.questionText
-      : "원문 질문 본문을 자동으로 확인하지 못했습니다. 원문 URL에서 직접 확인이 필요합니다.";
+    const summary = candidate.questionText
+      || "원문 질문 내용을 자동으로 확인하지 못했습니다. 원문 URL에서 직접 확인이 필요합니다.";
     properties[props.summary.name] = { rich_text: richTextChunks(summary, 1800, 8000) };
   }
   setExistingSelect(properties, props.category, "생활 가이드");
@@ -717,9 +842,9 @@ async function createNotionPage(candidate, props) {
     `**탐색어:** ${candidate.matchedSeeds.join(" · ")}`,
     "",
     `**질문 원문 내용**`,
-    candidate.questionTextVerified
-      ? candidate.questionText
-      : "원문 질문 본문을 자동으로 확인하지 못했습니다. 답변 스니펫으로 대체하지 않았으므로 원문 URL에서 직접 확인해주세요.",
+    candidate.questionText
+      || "원문 질문 내용을 자동으로 확인하지 못했습니다. 원문 URL에서 직접 확인해주세요.",
+    `**질문 내용 수집 방식:** ${candidate.questionTextSource === "page-body" ? "원문 본문 영역" : candidate.questionTextSource === "meta-description" ? "원문 meta description 대체" : "확인 실패"}`,
     "",
     `**원문**`,
     candidate.link,

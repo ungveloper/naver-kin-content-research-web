@@ -190,6 +190,9 @@ type KinSourceQuestion = {
   url: string;
   title: string;
   description?: string;
+  questionText: string;
+  questionTextVerified: boolean;
+  questionTextSource: "page-body" | "meta-description";
 };
 
 function decodeHtmlEntities(value: string) {
@@ -235,31 +238,255 @@ function normalizeKinSourceUrl(value: string) {
   return url.toString();
 }
 
-async function fetchKinSourceQuestion(sourceUrl: string): Promise<KinSourceQuestion> {
-  const url = normalizeKinSourceUrl(sourceUrl);
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.7",
-    },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(`지식iN 원문을 열지 못했습니다. HTTP ${response.status}`);
+function extractPathPart(pathname: string, marker: string) {
+  const parts = String(pathname || "").split("/").filter(Boolean);
+  const index = parts.indexOf(marker);
+  return index >= 0 ? parts[index + 1] || "" : "";
+}
+
+function kinQuestionFetchUrls(value: string) {
+  const raw = new URL(value);
+  const dirId = raw.searchParams.get("dirId") || extractPathPart(raw.pathname, "dirs");
+  const docId = raw.searchParams.get("docId") || extractPathPart(raw.pathname, "docs");
+  const d1id = raw.searchParams.get("d1id") || "";
+  const candidates: string[] = [raw.toString()];
+
+  if (dirId && docId) {
+    candidates.push(`https://m.kin.naver.com/qna/dirs/${encodeURIComponent(dirId)}/docs/${encodeURIComponent(docId)}`);
+    candidates.push(`https://kin.naver.com/qna/dirs/${encodeURIComponent(dirId)}/docs/${encodeURIComponent(docId)}`);
+
+    const desktop = new URL("https://kin.naver.com/qna/detail.naver");
+    if (d1id) desktop.searchParams.set("d1id", d1id);
+    desktop.searchParams.set("dirId", dirId);
+    desktop.searchParams.set("docId", docId);
+    candidates.push(desktop.toString());
+
+    const mobile = new URL("https://m.kin.naver.com/qna/detail.naver");
+    if (d1id) mobile.searchParams.set("d1id", d1id);
+    mobile.searchParams.set("dirId", dirId);
+    mobile.searchParams.set("docId", docId);
+    candidates.push(mobile.toString());
   }
-  const html = await response.text();
-  const rawTitle = metaContent(html, "og:title") || metaContent(html, "twitter:title") || decodeHtmlEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
-  const rawDescription = metaContent(html, "og:description") || metaContent(html, "description") || metaContent(html, "twitter:description");
-  const title = stripHtml(rawTitle)
+
+  return Array.from(new Set(candidates));
+}
+
+function htmlToQuestionText(value: string) {
+  return decodeHtmlEntities(
+    String(value || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<br\s*\/?\s*>/gi, "\n")
+      .replace(/<\/p\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .replace(/[\t\r ]+/g, " ")
+    .replace(/\n\s+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractHtmlByClass(html: string, className: string) {
+  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const source = String(html || "");
+  const openPattern = new RegExp(
+    `<([a-z0-9]+)\\b[^>]*class=["'][^"']*\\b${escaped}\\b[^"']*["'][^>]*>`,
+    "i",
+  );
+  const openMatch = openPattern.exec(source);
+  if (!openMatch) return "";
+
+  const tagName = openMatch[1].toLowerCase();
+  const contentStart = openMatch.index + openMatch[0].length;
+  const tokenPattern = new RegExp(`<\\/?${tagName}\\b[^>]*>`, "gi");
+  tokenPattern.lastIndex = contentStart;
+  let depth = 1;
+  let token: RegExpExecArray | null;
+
+  while ((token = tokenPattern.exec(source))) {
+    const tokenText = token[0];
+    const isClosing = tokenText.startsWith("</");
+    const isSelfClosing = /\/\s*>$/.test(tokenText);
+    if (isClosing) depth -= 1;
+    else if (!isSelfClosing) depth += 1;
+    if (depth === 0) return source.slice(contentStart, token.index);
+  }
+  return "";
+}
+
+function isUsableQuestionText(value: string) {
+  const cleaned = htmlToQuestionText(value);
+  if (cleaned.length < 2) return false;
+  const lower = cleaned.toLowerCase();
+  const blocked = [
+    "네이버 지식in",
+    "지식인에서 답변",
+    "답변을 입력해주세요",
+    "메뉴 더보기",
+    "페이지를 찾을 수 없습니다",
+    "접근이 제한",
+    "서비스 이용이 제한",
+  ];
+  return !blocked.some((term) => lower.includes(term.toLowerCase()));
+}
+
+function normalizeQuestionText(value: string) {
+  return htmlToQuestionText(value)
+    .replace(/^질문\s*/i, "")
+    .replace(/\s*답변\s*\d+개[\s\S]*$/i, "")
+    .trim()
+    .slice(0, 8000);
+}
+
+function findQuestionNode(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findQuestionNode(item);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  const object = value as Record<string, unknown>;
+  const rawType = object["@type"];
+  const types = Array.isArray(rawType) ? rawType : [rawType];
+  if (types.some((item) => String(item || "").toLowerCase() === "question")) return object;
+
+  for (const child of Object.values(object)) {
+    const found = findQuestionNode(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function extractQuestionTextFromJsonLd(html: string) {
+  const scripts = [...String(html || "").matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+  for (const match of scripts) {
+    try {
+      const parsed = JSON.parse(decodeHtmlEntities(match[1]).trim()) as unknown;
+      const found = findQuestionNode(parsed);
+      if (!found) continue;
+      const value = String(found.text || found.description || "");
+      if (isUsableQuestionText(value)) return normalizeQuestionText(value);
+    } catch {
+      // 다음 구조화 데이터 후보를 확인합니다.
+    }
+  }
+  return "";
+}
+
+function extractKinQuestionText(html: string) {
+  const structured = extractQuestionTextFromJsonLd(html);
+  if (structured) return structured;
+
+  for (const className of ["questionDetail", "c-heading__content", "question-content"]) {
+    const extracted = htmlToQuestionText(extractHtmlByClass(html, className));
+    if (isUsableQuestionText(extracted)) return normalizeQuestionText(extracted);
+  }
+  return "";
+}
+
+function extractKinQuestionMetaDescription(html: string) {
+  for (const key of ["og:description", "twitter:description", "description"]) {
+    const value = normalizeQuestionText(metaContent(html, key));
+    if (isUsableQuestionText(value)) return value;
+  }
+  return "";
+}
+
+function extractKinQuestionTitle(html: string) {
+  const rawTitle =
+    metaContent(html, "og:title")
+    || metaContent(html, "twitter:title")
+    || decodeHtmlEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
+  return stripHtml(rawTitle)
     .replace(/\s*[:|\-]\s*(네이버\s*)?지식iN.*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
-  const description = stripHtml(rawDescription).replace(/\s+/g, " ").trim();
-  if (!title || title.length < 2) {
-    throw new Error("지식iN 원문에서 질문 제목을 확인하지 못했습니다. 원문이 공개 상태인지 확인해주세요.");
+}
+
+async function fetchKinSourceQuestion(sourceUrl: string): Promise<KinSourceQuestion> {
+  const url = normalizeKinSourceUrl(sourceUrl);
+  const fetchUrls = kinQuestionFetchUrls(url);
+  const profiles = [
+    {
+      name: "mobile",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+    },
+    {
+      name: "desktop",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+    },
+  ];
+
+  let bestTitle = "";
+  let bestDescription = "";
+  let lastError = "";
+
+  for (const fetchUrl of fetchUrls) {
+    for (const profile of profiles) {
+      try {
+        const response = await fetch(fetchUrl, {
+          headers: {
+            "User-Agent": profile.userAgent,
+            Accept: "text/html,application/xhtml+xml",
+            "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.7",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+            Referer: "https://kin.naver.com/",
+          },
+          redirect: "follow",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          lastError = `${profile.name} HTTP ${response.status}`;
+          continue;
+        }
+
+        const html = await response.text();
+        const title = extractKinQuestionTitle(html);
+        const description = extractKinQuestionMetaDescription(html);
+        const questionText = extractKinQuestionText(html);
+
+        if (!bestTitle && title) bestTitle = title;
+        if (!bestDescription && description) bestDescription = description;
+
+        if (title && questionText) {
+          return {
+            url,
+            title,
+            description: description || undefined,
+            questionText,
+            questionTextVerified: true,
+            questionTextSource: "page-body",
+          };
+        }
+
+        lastError = `본문 영역 추출 실패 (${profile.name})`;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
   }
-  return { url, title, description: description || undefined };
+
+  if (bestTitle && bestDescription) {
+    return {
+      url,
+      title: bestTitle,
+      description: bestDescription,
+      questionText: bestDescription,
+      questionTextVerified: false,
+      questionTextSource: "meta-description",
+    };
+  }
+
+  throw new Error(
+    bestTitle
+      ? `지식iN 질문 제목은 확인했지만 질문 본문을 가져오지 못했습니다. ${lastError || ""}`.trim()
+      : `지식iN 원문을 열지 못했습니다. ${lastError || ""}`.trim(),
+  );
 }
 
 function anchorCoreQueries(title: string) {
@@ -871,7 +1098,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (isExcludedContentTopic(`${sourceQuestion.title} ${sourceQuestion.description || ""}`)) {
+    if (isExcludedContentTopic(`${sourceQuestion.title} ${sourceQuestion.questionText} ${sourceQuestion.description || ""}`)) {
       return NextResponse.json(
         { error: "이 질문은 의료·법률·금융·전문 안전 등 자동 콘텐츠 조사 제외 범위에 해당합니다." },
         { status: 422 },
@@ -882,7 +1109,7 @@ export async function POST(request: NextRequest) {
 
   const seeds = sourceQuestion && anchorSeed ? [anchorSeed] : rotatingSeeds;
   const seedSummary = sourceQuestion
-    ? [{ query: sourceQuestion.title, category: inferInternalCategoryLabel(`${sourceQuestion.title} ${sourceQuestion.description || ""}`) }]
+    ? [{ query: sourceQuestion.title, category: inferInternalCategoryLabel(`${sourceQuestion.title} ${sourceQuestion.questionText} ${sourceQuestion.description || ""}`) }]
     : seeds.map((seed) => ({ query: seed.query, category: autoResearchCategoryLabel(seed.category) }));
 
   // 1) 지식iN은 문제 발견만 담당합니다.
@@ -896,7 +1123,7 @@ export async function POST(request: NextRequest) {
     const anchorItem: SearchItem = {
       title: sourceQuestion.title,
       link: sourceQuestion.url,
-      description: sourceQuestion.description,
+      description: sourceQuestion.questionText || sourceQuestion.description,
     };
     discovered.push({
       category: anchorSeed.category,
@@ -1132,7 +1359,7 @@ export async function POST(request: NextRequest) {
       id: makeId("bundle"),
       query: cluster.title,
       discoveryCategory: sourceQuestion
-        ? inferInternalCategoryLabel(`${sourceQuestion.title} ${sourceQuestion.description || ""}`)
+        ? inferInternalCategoryLabel(`${sourceQuestion.title} ${sourceQuestion.questionText} ${sourceQuestion.description || ""}`)
         : autoResearchCategoryLabel(cluster.category),
       discoveredProblem,
       sourceSignalIds: bundleSignals.map((signal) => signal.id),
