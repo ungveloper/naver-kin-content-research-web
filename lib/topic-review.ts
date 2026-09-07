@@ -4,7 +4,7 @@ import type {
   ResearchEvidenceBundle,
   TopicReviewResult,
 } from "@/lib/types";
-import { MULTI_PASS_FINAL_VALIDATION_POLICY, PUBLISHING_QUALITY_POLICY, QUESTION_ANSWER_PRIORITY_POLICY } from "@/lib/content-quality";
+import { FINAL_OUTPUT_POLISH_POLICY, MULTI_PASS_FINAL_VALIDATION_POLICY, PUBLISHING_QUALITY_POLICY, QUESTION_ANSWER_PRIORITY_POLICY } from "@/lib/content-quality";
 import { IM_NOT_AI_FINAL_PASS_CONTRACT } from "@/lib/im-not-ai-humanize";
 import {
   IM_NOT_AI_UPSTREAM_POLICY,
@@ -113,10 +113,13 @@ ${IM_NOT_AI_UPSTREAM_POLICY}
 [최종 다중 검수]
 ${MULTI_PASS_FINAL_VALIDATION_POLICY}
 
+[최종 출력 다듬기]
+${FINAL_OUTPUT_POLISH_POLICY}
+
 [최종 품질 게이트]
 - 첫 1~2문장에서 사용자의 핵심 질문에 직접 답하고, 첫 2~3문단 안에서 필요한 조건·예외까지 정리한다.
 - 같은 결론의 사례를 숫자 채우기용으로 반복하지 않는다.
-- 표는 실제 비교·결정에 도움이 될 때만 사용하고 Markdown 열 수가 깨지지 않게 작성한다.
+- 표는 동일 비교축을 한눈에 봐야 할 때만 사용한다. 조건·절차·예외 설명은 기본적으로 목록을 우선하며 Markdown 열 수가 깨질 가능성이 있으면 표를 사용하지 않는다.
 - 모든 글에 같은 H2/H3/FAQ/결론 구조를 반복하지 않는다. 주제에 가장 자연스러운 사고 흐름을 사용한다.
 - 제목과 SEO 설명은 실제 본문보다 과장하지 않는다.
 - 공식 URL에는 utm_source=chatgpt.com 같은 불필요한 추적 파라미터를 붙이지 않는다.
@@ -216,10 +219,11 @@ standalone-post로 판정되고 research-verification으로 검증이 충분한 
 ## 추천 답변
 아래 답변은 하나의 text 코드 블록으로 출력해 바로 복사할 수 있게 한다.
 \`\`\`text
-질문에 대한 핵심 답을 첫 1~2문장에서 바로 제시한다.
-필요한 조건·예외·확인 순서를 2~5줄 정도로 짧게 정리한다.
-마지막에는 질문자가 이미 핵심 답을 충분히 받은 상태에서도 추가적인 조건·예외·단계별 확인이 필요할 때만 참고할 수 있다는 중립적인 안내 문장 1개를 둔다.
-게시 전이라 실제 WordPress URL이 아직 없다면 [[게시 후 실제 글 URL]]이라고 표시한다.
+질문에 대한 핵심 답을 첫 문장에서 바로 제시한다.
+질문의 결과를 바꾸는 조건과 지금 확인할 항목만 남겨 3~6개의 자연스러운 문장 또는 1~2개의 짧은 문단으로 답한다.
+WordPress 본문을 요약해서 다시 쓰지 말고, 질문에 없는 일반론·배경·SEO 표현은 제거한다.
+추가 세부 기준을 보는 것이 실제로 도움이 될 때만 답변 맨 끝에 중립적인 참고 문장과 링크 1개를 둔다.
+링크가 불필요하면 링크 문장과 [[게시 후 실제 글 URL]]을 출력하지 않는다. 링크가 필요하지만 발행 전이면 [[게시 후 실제 글 URL]]을 한 번만 표시한다.
 \`\`\`
 
 [지식iN 답변 작성 원칙 — 광고처럼 보이지 않게]
@@ -511,6 +515,9 @@ ${IM_NOT_AI_UPSTREAM_POLICY}
 
 [최종 다중 검수]
 ${MULTI_PASS_FINAL_VALIDATION_POLICY}
+
+[최종 출력 다듬기]
+${FINAL_OUTPUT_POLISH_POLICY}
 
 [선택 후 최종 WordPress 작성 원칙]
 - 의료·건강·영양, 법률·분쟁, 금융·재정, 전문 안전 작업은 선택되었더라도 원고를 만들지 않는다.
