@@ -43,7 +43,8 @@ async function main() {
     "/api/site-content",
     {
       siteUrl,
-      maxPosts: 500,
+      maxPosts: 10_000,
+      allPosts: true,
     },
   );
 

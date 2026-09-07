@@ -805,7 +805,7 @@ export function ResearchWorkbench() {
       const response = await fetch("/api/site-content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteUrl: siteUrl.trim(), maxPosts: 500 }),
+        body: JSON.stringify({ siteUrl: siteUrl.trim(), maxPosts: 10_000, allPosts: true }),
       });
       const data = (await response.json()) as SiteContentSyncResponse;
       if (!response.ok) throw new Error(data.error || "WordPress 글 목록을 가져오지 못했습니다.");

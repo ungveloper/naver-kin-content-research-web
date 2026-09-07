@@ -53,7 +53,7 @@ function daysSince(value?: string) {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { siteUrl?: string; maxPosts?: number } = {};
+  let body: { siteUrl?: string; maxPosts?: number; allPosts?: boolean } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -71,7 +71,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "사이트 URL 형식이 올바르지 않습니다." }, { status: 400 });
   }
 
-  const maxPosts = Math.max(20, Math.min(500, Math.floor(Number(body.maxPosts) || 300)));
+  const requestedMax = Math.floor(
+    Number(body.maxPosts) || (body.allPosts ? 10_000 : 500),
+  );
+  const maxPosts = Math.max(
+    20,
+    Math.min(body.allPosts ? 10_000 : 5_000, requestedMax),
+  );
   const perPage = 100;
   const maxPages = Math.ceil(maxPosts / perPage);
   const posts: WordPressPost[] = [];
