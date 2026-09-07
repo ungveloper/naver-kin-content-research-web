@@ -79,3 +79,34 @@ GitHub Actions Secrets는 Next.js/Vercel 런타임으로 자동 전달되지 않
 - `NOTION_URL_PROPERTY` — 선택 사항. 현재 데이터베이스의 URL 속성명이 `원문 URL`이 아니라면 지정
 
 로컬 개발은 `.env.local`, Vercel 배포는 Project Settings → Environment Variables에 같은 값을 넣습니다.
+
+## 자동 API → Focused Research → Notion → ChatGPT Pro 운영 흐름
+
+자동 탐색과 사용자가 직접 지식iN URL을 입력하는 흐름은 최종적으로 같은 Focused Research 파이프라인을 사용합니다.
+
+1. GitHub Actions가 NAVER 지식iN API를 조회하고 중복·제외 분야·문제 구체성·반복 수요·에버그린 점수로 1차 후보를 선정합니다.
+2. 통과한 후보의 `원문 URL`을 사람이 다시 입력하지 않고, GitHub Actions가 로컬로 띄운 동일 Next.js `/api/research/auto`의 `sourceUrl`에 자동 전달합니다.
+3. 직접 URL 입력과 똑같이 원문 질문 본문, 유사 독립 질문, NAVER 검색어트렌드, 카페, 블로그, 뉴스, 웹/공식 근거 후보를 Evidence Bundle로 다시 수집합니다.
+4. `WORDPRESS_SITE_URL`의 기존 글을 최대 500건 동기화해 실질적으로 같은 검색 의도의 기존 글이 있는지 검토 데이터에 포함합니다.
+5. 최종 ChatGPT Pro 프롬프트에는 다음 품질 정책을 모두 포함합니다.
+   - 원 질문에 첫 1~2문장부터 직접 답하기
+   - 현재 유효한 1차 공식 원문 재검증
+   - 기존 WordPress 글과 실질 중복이면 신규 글 보류
+   - Google 사람 중심 SEO와 검색 의도 일치
+   - 저가치·대량생성·검색결과 재조합·의미 없는 글자 수 채우기 금지
+   - AdSense 승인을 보장하지 않되 저가치/무검토 자동생성으로 보일 위험을 낮추는 품질 점검
+   - im-not-ai 한국어 최종 윤문
+   - 원 질문 → 근거 → SEO/저가치 → 문체 → 최종 교차검증의 5단계 반복 검수
+6. 완성된 `reviewPrompt`를 해당 Notion 페이지 본문 전체에 `ChatGPT Pro 작성 프롬프트`로 저장합니다.
+7. 사용자는 Notion에서 프롬프트 전체를 직접 복사해 ChatGPT Pro에 붙여넣습니다.
+8. ChatGPT Pro의 WordPress 게시용 본문·대표 이미지 프롬프트·Rank Math SEO 패키지·지식iN 답변 추천 결과를 사람이 최종 확인한 뒤 WordPress에 직접 게시합니다.
+
+GitHub Actions의 자동 경로는 별도의 축약형 프롬프트를 만들지 않습니다. 사람이 `지식iN 원문으로 바로 조사`에 URL을 넣었을 때 사용하는 동일 `sourceUrl` 코드 경로와 `buildTopicReviewPrompt()`를 그대로 사용합니다.
+
+### 자동 경로 설정값
+
+- `WORDPRESS_SITE_URL`: 기존 WordPress 글 중복 검사용. 미설정 시 현재 사이트 `https://3minago.com`을 기본값으로 사용합니다.
+- `MONITOR_MAX_FOCUSED_PROMPTS_PER_RUN`: 한 번의 GitHub Actions 실행에서 최종 프롬프트를 생성할 최대 후보 수. 미설정 시 5개입니다.
+- 기존 `NAVER_API_HUB_CLIENT_ID`, `NAVER_API_HUB_CLIENT_SECRET`, `NOTION_API_KEY`, `NOTION_DATA_SOURCE_ID` Secret은 그대로 사용합니다.
+
+이미 Notion에 `검토 전` 상태로 남아 있고 아직 `ChatGPT Pro 작성 프롬프트`가 없는 최근 후보도 실행당 남은 한도 내에서 자동 backfill합니다.

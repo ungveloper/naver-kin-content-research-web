@@ -7,6 +7,10 @@ const SEARCH_DISPLAY = 50;
 const MAX_DEDUPE_CHECKS = 14;
 const MAX_RAW_SCORE = 14.5;
 const MAX_EVERGREEN_SCORE = 3;
+const FOCUSED_RESEARCH_BASE_URL = (process.env.FOCUSED_RESEARCH_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
+const WORDPRESS_SITE_URL = (process.env.WORDPRESS_SITE_URL || "https://3minago.com").replace(/\/$/, "");
+const MAX_FOCUSED_PROMPTS_PER_RUN = integerEnv("MONITOR_MAX_FOCUSED_PROMPTS_PER_RUN", 5, 1, 10);
+let cachedWordPressContext;
 
 const seeds = [
   ["휴대폰 백업 복원 데이터 이전", "디지털 생활"],
@@ -155,21 +159,12 @@ async function main() {
   }
 
   let created = 0;
+  let focusedPromptsGenerated = 0;
+
   for (const rawCandidate of clustered) {
     if (created >= MAX_PAGES_PER_RUN) break;
     const existingPage = await findNotionPageByUrl(rawCandidate.link, notionProperties.url.name);
     const candidate = await hydrateKinQuestion(rawCandidate);
-
-    if (existingPage) {
-      if (candidate.questionText && notionProperties.summary) {
-        await updateNotionQuestionSummary(existingPage.id, candidate, notionProperties);
-        console.log(`[KIN monitor] 기존 Notion 질문 요약 갱신: ${candidate.title}`);
-      } else {
-        console.log(`[KIN monitor] 이미 등록됨: ${rawCandidate.title}`);
-      }
-      await sleep(360);
-      continue;
-    }
 
     const validation = validateHydratedQuestion(candidate);
     if (!validation.ok) {
@@ -178,14 +173,42 @@ async function main() {
       continue;
     }
 
+    if (existingPage) {
+      if (candidate.questionText && notionProperties.summary) {
+        await updateNotionQuestionSummary(existingPage.id, candidate, notionProperties);
+      }
+
+      const hasPrompt = await notionPageHasFocusedPrompt(existingPage.id);
+      if (!hasPrompt && focusedPromptsGenerated < MAX_FOCUSED_PROMPTS_PER_RUN) {
+        if (await generateAndSaveFocusedPrompt(candidate)) focusedPromptsGenerated += 1;
+      } else {
+        console.log(`[KIN monitor] 이미 등록됨${hasPrompt ? " · 프롬프트 준비 완료" : ""}: ${candidate.title}`);
+      }
+
+      await sleep(360);
+      continue;
+    }
+
     await createNotionPage(candidate, notionProperties);
     created += 1;
-    console.log(`[KIN monitor] Notion 등록: ${candidate.title} · ${scoreToPercent(candidate.totalScore, MAX_RAW_SCORE)}점/100 (raw ${candidate.totalScore.toFixed(1)}/${MAX_RAW_SCORE})`);
+    console.log(`[KIN monitor] Notion 후보 등록: ${candidate.title} · ${scoreToPercent(candidate.totalScore, MAX_RAW_SCORE)}점/100 (raw ${candidate.totalScore.toFixed(1)}/${MAX_RAW_SCORE})`);
+
+    if (focusedPromptsGenerated < MAX_FOCUSED_PROMPTS_PER_RUN) {
+      if (await generateAndSaveFocusedPrompt(candidate)) focusedPromptsGenerated += 1;
+    }
+
     await sleep(360);
   }
 
+  if (focusedPromptsGenerated < MAX_FOCUSED_PROMPTS_PER_RUN) {
+    focusedPromptsGenerated += await backfillMissingFocusedPrompts(
+      notionProperties,
+      MAX_FOCUSED_PROMPTS_PER_RUN - focusedPromptsGenerated,
+    );
+  }
+
   console.log(
-    `[KIN monitor] 완료 · 원시 ${raw.length}건 / 1차 통과 ${unique.length}건 / 점수 통과 ${clustered.length}건 / 신규 등록 ${created}건`,
+    `[KIN monitor] 완료 · 원시 ${raw.length}건 / 1차 통과 ${unique.length}건 / 점수 통과 ${clustered.length}건 / 신규 등록 ${created}건 / 최종 프롬프트 ${focusedPromptsGenerated}건`,
   );
 }
 
@@ -810,6 +833,177 @@ async function backfillMissingQuestionSummaries(props) {
 
     await sleep(360);
   }
+}
+
+async function focusedApi(path, options = {}) {
+  const response = await fetch(`${FOCUSED_RESEARCH_BASE_URL}${path}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(options.headers || {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    signal: AbortSignal.timeout(options.timeoutMs || 120_000),
+  });
+
+  const text = await response.text();
+  const data = safeJson(text);
+  if (!response.ok) {
+    throw new Error(data?.error || `${path} HTTP ${response.status}: ${text.slice(0, 500)}`);
+  }
+  return data;
+}
+
+async function getWordPressContext() {
+  if (cachedWordPressContext) return cachedWordPressContext;
+
+  try {
+    const data = await focusedApi("/api/site-content", {
+      method: "POST",
+      timeoutMs: 45_000,
+      body: {
+        siteUrl: WORDPRESS_SITE_URL,
+        maxPosts: 500,
+      },
+    });
+
+    cachedWordPressContext = {
+      siteUrl: data.siteUrl || WORDPRESS_SITE_URL,
+      siteContents: Array.isArray(data.contents) ? data.contents : [],
+    };
+    console.log(`[KIN monitor] WordPress 기존 글 ${cachedWordPressContext.siteContents.length}건을 중복 검사 기준으로 동기화`);
+  } catch (error) {
+    console.warn(`[KIN monitor] WordPress 중복 검사 데이터 동기화 실패: ${error instanceof Error ? error.message : String(error)}`);
+    cachedWordPressContext = {
+      siteUrl: WORDPRESS_SITE_URL,
+      siteContents: [],
+    };
+  }
+
+  return cachedWordPressContext;
+}
+
+async function generateAndSaveFocusedPrompt(candidate) {
+  try {
+    const wordpress = await getWordPressContext();
+
+    // 사람이 Focused Research 입력칸에 URL을 넣었을 때와 완전히 같은 sourceUrl 경로를 호출합니다.
+    const research = await focusedApi("/api/research/auto", {
+      method: "POST",
+      timeoutMs: 150_000,
+      body: {
+        offset: 0,
+        sourceUrl: candidate.link,
+        usedTopics: [],
+        siteUrl: wordpress.siteUrl,
+        siteContents: wordpress.siteContents,
+        searchPerformance: [],
+      },
+    });
+
+    const bundles = Array.isArray(research.evidenceBundles) ? research.evidenceBundles : [];
+    if (!research.reviewPrompt || !research.sourceQuestion || bundles.length !== 1) {
+      const reason = Array.isArray(research.errors) && research.errors.length
+        ? research.errors[0]
+        : "Focused Research Evidence Bundle 또는 최종 작성 프롬프트가 비어 있습니다.";
+      console.warn(`[KIN monitor] 최종 프롬프트 생성 보류: ${candidate.title} · ${reason}`);
+      return false;
+    }
+
+    const saved = await focusedApi("/api/notion/prompt", {
+      method: "POST",
+      timeoutMs: 60_000,
+      body: {
+        sourceUrl: candidate.link,
+        reviewPrompt: research.reviewPrompt,
+        sourceQuestion: research.sourceQuestion,
+      },
+    });
+
+    console.log(`[KIN monitor] Focused Research → Notion 최종 프롬프트 저장: ${candidate.title}${saved?.pageUrl ? ` · ${saved.pageUrl}` : ""}`);
+    return true;
+  } catch (error) {
+    console.warn(`[KIN monitor] Focused Research 자동 프롬프트 실패: ${candidate.title} · ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
+}
+
+function blockPlainText(block) {
+  const content = block?.[block?.type];
+  const richTextItems = Array.isArray(content?.rich_text) ? content.rich_text : [];
+  return richTextItems.map((item) => item?.plain_text || item?.text?.content || "").join("");
+}
+
+async function notionPageHasFocusedPrompt(pageId) {
+  if (!pageId) return false;
+  try {
+    const result = await notionFetch(`/v1/blocks/${encodeURIComponent(pageId)}/children?page_size=10`);
+    const blocks = Array.isArray(result?.results) ? result.results : [];
+    return blocks.some((block) => blockPlainText(block).includes("ChatGPT Pro 작성 프롬프트"));
+  } catch (error) {
+    console.warn(`[KIN monitor] Notion 프롬프트 존재 확인 실패: ${pageId} · ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
+}
+
+function notionStatusFilter(statusProp, value) {
+  if (!statusProp || !value) return undefined;
+  if (statusProp.type === "status") {
+    return { property: statusProp.name, status: { equals: value } };
+  }
+  if (statusProp.type === "select") {
+    return { property: statusProp.name, select: { equals: value } };
+  }
+  return undefined;
+}
+
+async function backfillMissingFocusedPrompts(props, limit) {
+  if (!limit || !props.url || !props.title) return 0;
+
+  const body = { page_size: 20 };
+  const statusFilter = notionStatusFilter(props.status, "검토 전");
+  if (statusFilter) body.filter = statusFilter;
+  if (props.foundAt) {
+    body.sorts = [{ property: props.foundAt.name, direction: "descending" }];
+  }
+
+  let result;
+  try {
+    result = await notionFetch(`/v1/data_sources/${encodeURIComponent(process.env.NOTION_DATA_SOURCE_ID)}/query`, {
+      method: "POST",
+      body,
+    });
+  } catch (error) {
+    console.warn(`[KIN monitor] 기존 Notion 프롬프트 backfill 조회 실패: ${error instanceof Error ? error.message : String(error)}`);
+    return 0;
+  }
+
+  const pages = Array.isArray(result?.results) ? result.results : [];
+  let generated = 0;
+
+  for (const page of pages) {
+    if (generated >= limit) break;
+    if (await notionPageHasFocusedPrompt(page.id)) continue;
+
+    const url = page?.properties?.[props.url.name]?.url || "";
+    if (!url) continue;
+
+    const titleParts = page?.properties?.[props.title.name]?.title || [];
+    const title = Array.isArray(titleParts)
+      ? titleParts.map((item) => item?.plain_text || item?.text?.content || "").join("").trim()
+      : "";
+
+    if (await generateAndSaveFocusedPrompt({ link: url, title: title || "지식iN 질문" })) {
+      generated += 1;
+      await sleep(360);
+    }
+  }
+
+  if (generated) {
+    console.log(`[KIN monitor] 기존 검토 전 후보의 최종 프롬프트 backfill ${generated}건 완료`);
+  }
+  return generated;
 }
 
 async function createNotionPage(candidate, props) {
