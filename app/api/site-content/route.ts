@@ -9,6 +9,7 @@ type WordPressPost = {
   date?: string;
   modified?: string;
   title?: { rendered?: string };
+  excerpt?: { rendered?: string };
 };
 
 const FAST_CHANGE_MARKERS = [
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
       url.searchParams.set("page", String(page));
       url.searchParams.set("orderby", "date");
       url.searchParams.set("order", "desc");
-      url.searchParams.set("_fields", "id,link,slug,date,modified,title");
+      url.searchParams.set("_fields", "id,link,slug,date,modified,title,excerpt");
 
       const response = await fetch(url, {
         headers: { Accept: "application/json" },
@@ -123,6 +124,7 @@ export async function POST(request: NextRequest) {
       title,
       url,
       slug: post.slug,
+      excerpt: stripHtml(post.excerpt?.rendered || "").trim().slice(0, 600) || undefined,
       publishedAt: post.date,
       modifiedAt: post.modified,
       revalidationWindowDays: windowDays,

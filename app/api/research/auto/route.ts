@@ -19,8 +19,10 @@ import {
 } from "@/lib/naver-api-hub";
 import { isExcludedContentTopic, makeId, stripHtml } from "@/lib/research";
 import { buildTopicReviewPrompt } from "@/lib/topic-review";
+import { PROMPT_VERSION } from "@/lib/editorial-policy";
 import type {
   EditorialContext,
+  EditorialPreflight,
   ResearchEvidenceBundle,
   ResearchEvidenceItem,
   Signal,
@@ -516,6 +518,100 @@ function inferInternalCategoryLabel(text: string) {
   return "집 관리";
 }
 
+
+function buildEditorialPreflight(
+  bundles: ResearchEvidenceBundle[],
+  editorialContext: EditorialContext,
+  sourceQuestion?: KinSourceQuestion,
+): EditorialPreflight[] {
+  return bundles.map((bundle) => {
+    const bundleContext = editorialContext.bundles.find(
+      (item) => item.bundleId === bundle.id,
+    );
+    const duplicateSimilarity =
+      bundleContext?.existingContentMatches[0]?.similarity || 0;
+    const officialEvidenceCount = bundle.web.filter(
+      (item) => item.officialCandidate,
+    ).length;
+    const coverageCount = Object.values(bundle.coverage).filter(Boolean).length;
+    const questionDemand = bundle.questionStats.uniqueCount;
+    const questionLength = (
+      sourceQuestion?.questionText
+      || bundle.discoveredProblem
+      || bundle.query
+    ).trim().length;
+
+    let recommendedDisposition: EditorialPreflight["recommendedDisposition"] =
+      "standalone-post";
+    let rationale =
+      "독립 검색 의도와 Evidence가 있어 WordPress 독립 글 후보로 검증할 가치가 있습니다.";
+
+    if (bundleContext?.likelyDuplicate || duplicateSimilarity >= 0.72) {
+      recommendedDisposition = "existing-post-update";
+      rationale =
+        "기존 WordPress 글과 검색 의도가 매우 가까워 신규 URL보다 기존 글 업데이트를 우선 검토해야 합니다.";
+    } else if (
+      questionLength <= 160
+      && questionDemand <= 1
+      && officialEvidenceCount <= 1
+      && coverageCount <= 2
+    ) {
+      recommendedDisposition = "kin-answer-only";
+      rationale =
+        "질문 자체에는 답할 가치가 있지만 독립 WordPress 글로 확장하면 분량 채우기가 될 가능성이 높습니다.";
+    } else if (
+      bundle.questionStats.uniqueCount === 0
+      && officialEvidenceCount === 0
+      && coverageCount <= 1
+    ) {
+      recommendedDisposition = "reject";
+      rationale =
+        "반복 수요와 검증 가능한 근거가 모두 약해 자동 제작 후보로 쓰기 어렵습니다.";
+    }
+
+    const evidenceScore = Math.min(
+      24,
+      coverageCount * 4 + officialEvidenceCount * 4,
+    );
+    const demandScore = Math.min(22, questionDemand * 5);
+    const trendScore = bundle.coverage.trend ? 8 : 0;
+    const uniquenessScore = Math.max(
+      0,
+      20 - Math.round(duplicateSimilarity * 20),
+    );
+    const baseScore = 26;
+    const penalty =
+      recommendedDisposition === "reject"
+        ? 25
+        : recommendedDisposition === "existing-post-update"
+          ? 10
+          : 0;
+    const qualityScore = Math.max(
+      0,
+      Math.min(
+        100,
+        baseScore
+          + evidenceScore
+          + demandScore
+          + trendScore
+          + uniquenessScore
+          - penalty,
+      ),
+    );
+
+    return {
+      bundleId: bundle.id,
+      recommendedDisposition,
+      rationale,
+      qualityScore,
+      officialEvidenceCount,
+      duplicateSimilarity: Math.round(duplicateSimilarity * 100) / 100,
+      questionDemand,
+      coverageCount,
+    };
+  });
+}
+
 function safeNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;
@@ -546,11 +642,11 @@ function buildEditorialContext(
     const existingContentMatches = normalizedSiteContents
       .map((item) => ({
         item,
-        similarity: topicSimilarity(`${bundle.query} ${bundle.discoveredProblem}`, item.title),
+        similarity: topicSimilarity(`${bundle.query} ${bundle.discoveredProblem}`, `${item.title} ${item.excerpt || ""}`),
       }))
       .filter((entry) => entry.similarity >= 0.2)
       .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 5)
+      .slice(0, 8)
       .map(({ item, similarity }) => ({
         title: item.title,
         url: item.url,
@@ -1244,6 +1340,8 @@ export async function POST(request: NextRequest) {
       evidenceBundles: [],
       reviewPrompt: "",
       editorialContext: buildEditorialContext([], body.siteUrl, siteContents, searchPerformance),
+      promptVersion: PROMPT_VERSION,
+      preflight: [],
       errors: [
         ...Array.from(new Set(errors)),
         `지식iN 검색은 완료됐지만 독립 질문 후보가 남지 않았습니다. 원시 발견 ${discovered.length}건 중 중복·금지 분야·실제 사용한 최근 주제만 제외했습니다. 단순 노출 이력은 더 이상 차단하지 않습니다.`,
@@ -1408,12 +1506,18 @@ export async function POST(request: NextRequest) {
     siteContents,
     searchPerformance,
   );
+  const preflight = buildEditorialPreflight(
+    evidenceBundles,
+    editorialContext,
+    sourceQuestion,
+  );
   const reviewPrompt = buildTopicReviewPrompt(evidenceBundles, {
     generatedAt: createdAt,
     seeds: seedSummary,
     cooldown,
     editorialContext,
     focusedSourceQuestion: sourceQuestion,
+    preflight,
   });
 
   return NextResponse.json({
@@ -1424,6 +1528,8 @@ export async function POST(request: NextRequest) {
     evidenceBundles,
     reviewPrompt,
     editorialContext,
+    promptVersion: PROMPT_VERSION,
+    preflight,
     errors: Array.from(new Set(errors)).slice(0, 12),
     cooldown,
     sourceQuestion,

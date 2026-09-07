@@ -83,11 +83,29 @@ export type ResearchEvidenceBundle = {
 };
 
 
+export type EditorialDisposition =
+  | "standalone-post"
+  | "existing-post-update"
+  | "kin-answer-only"
+  | "reject";
+
+export type EditorialPreflight = {
+  bundleId: string;
+  recommendedDisposition: EditorialDisposition;
+  rationale: string;
+  qualityScore: number;
+  officialEvidenceCount: number;
+  duplicateSimilarity: number;
+  questionDemand: number;
+  coverageCount: number;
+};
+
 export type SiteContentRecord = {
   id: string;
   title: string;
   url: string;
   slug?: string;
+  excerpt?: string;
   publishedAt?: string;
   modifiedAt?: string;
   revalidationWindowDays: 90 | 180;
