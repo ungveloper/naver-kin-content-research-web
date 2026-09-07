@@ -404,7 +404,7 @@ export function ResearchWorkbench() {
 
   const [autoResearchLoading, setAutoResearchLoading] = useState(false);
   const [autoResearchError, setAutoResearchError] = useState<string | null>(null);
-  const [autoResearchOffset, setAutoResearchOffset] = useState(0);
+  const [, setAutoResearchOffset] = useState(0);
   const [autoResearchSeeds, setAutoResearchSeeds] = useState<AutoResearchSeedSummary[]>([]);
   const [autoResearchWarnings, setAutoResearchWarnings] = useState<string[]>([]);
   const [autoResearchCooldown, setAutoResearchCooldown] = useState<AutoResearchResponse["cooldown"] | null>(null);
@@ -417,6 +417,7 @@ export function ResearchWorkbench() {
   const [kinUrlResearchError, setKinUrlResearchError] = useState<string | null>(null);
   const [autoSourceQuestion, setAutoSourceQuestion] = useState<AutoResearchResponse["sourceQuestion"] | null>(null);
   const [usedTopics, setUsedTopics] = useState<UsedTopicHistory[]>([]);
+  const [sessionNow] = useState(() => Date.now());
   const [autoEditorialContext, setAutoEditorialContext] = useState<EditorialContext | null>(null);
   const [siteUrl, setSiteUrl] = useState("");
   const [siteContents, setSiteContents] = useState<SiteContentRecord[]>([]);
@@ -434,32 +435,36 @@ export function ResearchWorkbench() {
   const csvInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    try {
-      const storedSignals = window.localStorage.getItem(STORAGE_SIGNALS);
-      const storedCandidates = window.localStorage.getItem(STORAGE_CANDIDATES);
-      const storedUsedTopics = window.localStorage.getItem(STORAGE_USED_TOPICS);
-      const storedSiteUrl = window.localStorage.getItem(STORAGE_SITE_URL);
-      const storedSiteContents = window.localStorage.getItem(STORAGE_SITE_CONTENTS);
-      const storedSiteSyncedAt = window.localStorage.getItem(STORAGE_SITE_SYNCED_AT);
-      if (storedSignals) setSignals(JSON.parse(storedSignals));
-      if (storedCandidates) {
-        const parsed = JSON.parse(storedCandidates) as Candidate[];
-        setCandidates(Array.isArray(parsed) ? parsed.filter(isUsableCandidate) : []);
+    const timer = window.setTimeout(() => {
+      try {
+        const storedSignals = window.localStorage.getItem(STORAGE_SIGNALS);
+        const storedCandidates = window.localStorage.getItem(STORAGE_CANDIDATES);
+        const storedUsedTopics = window.localStorage.getItem(STORAGE_USED_TOPICS);
+        const storedSiteUrl = window.localStorage.getItem(STORAGE_SITE_URL);
+        const storedSiteContents = window.localStorage.getItem(STORAGE_SITE_CONTENTS);
+        const storedSiteSyncedAt = window.localStorage.getItem(STORAGE_SITE_SYNCED_AT);
+        if (storedSignals) setSignals(JSON.parse(storedSignals));
+        if (storedCandidates) {
+          const parsed = JSON.parse(storedCandidates) as Candidate[];
+          setCandidates(Array.isArray(parsed) ? parsed.filter(isUsableCandidate) : []);
+        }
+        if (storedUsedTopics) setUsedTopics(JSON.parse(storedUsedTopics));
+        if (storedSiteUrl) setSiteUrl(storedSiteUrl);
+        if (storedSiteContents) {
+          const parsed = JSON.parse(storedSiteContents) as SiteContentRecord[];
+          if (Array.isArray(parsed)) setSiteContents(parsed);
+        }
+        if (storedSiteSyncedAt) setSiteContentSyncedAt(storedSiteSyncedAt);
+        // 이전 버전의 14일 노출 차단 기록은 더 이상 사용하지 않습니다.
+        window.localStorage.removeItem(LEGACY_STORAGE_SEEN_TOPICS);
+      } catch {
+        // 손상된 로컬 데이터가 있어도 앱은 빈 상태로 시작합니다.
+      } finally {
+        setHydrated(true);
       }
-      if (storedUsedTopics) setUsedTopics(JSON.parse(storedUsedTopics));
-      if (storedSiteUrl) setSiteUrl(storedSiteUrl);
-      if (storedSiteContents) {
-        const parsed = JSON.parse(storedSiteContents) as SiteContentRecord[];
-        if (Array.isArray(parsed)) setSiteContents(parsed);
-      }
-      if (storedSiteSyncedAt) setSiteContentSyncedAt(storedSiteSyncedAt);
-      // 이전 버전의 14일 노출 차단 기록은 더 이상 사용하지 않습니다.
-      window.localStorage.removeItem(LEGACY_STORAGE_SEEN_TOPICS);
-    } catch {
-      // 손상된 로컬 데이터가 있어도 앱은 빈 상태로 시작합니다.
-    } finally {
-      setHydrated(true);
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -1275,7 +1280,7 @@ export function ResearchWorkbench() {
                         <div className="text-xs font-medium text-zinc-300">{autoSourceQuestion ? "최종 작성 프롬프트 복사" : "프롬프트 복사하기"}</div>
                         <p className="mt-1 text-xs leading-5 text-zinc-500">{autoSourceQuestion ? "선택한 지식iN 원문에 대한 증거 수집이 끝났습니다. 프롬프트를 ChatGPT Pro에 붙여넣으면 별도의 후보 선택 없이 내부 품질 검증과 공식 원문 재검증을 거쳐 통과 시 바로 WordPress 최종 아웃풋을 작성합니다." : "NAVER 6개 API 증거 수집이 끝났습니다. 아래 프롬프트를 복사해 ChatGPT Pro에 붙여넣고 추천 순위를 확인한 뒤 번호만 선택하면 됩니다."}</p>
                         <div className="mt-2 text-[11px] leading-5 text-zinc-500">
-                          최근 프롬프트 사용 {usedTopics.filter((item) => Date.now() - new Date(item.usedAt).getTime() <= 60 * 86_400_000).length}개 · 60일 중복 방지
+                          최근 프롬프트 사용 {usedTopics.filter((item) => sessionNow - new Date(item.usedAt).getTime() <= 60 * 86_400_000).length}개 · 60일 중복 방지
                         </div>
                         <div className="mt-4">
                           <button
@@ -1301,7 +1306,7 @@ export function ResearchWorkbench() {
                         <div className="text-xs font-medium text-zinc-300">오늘 할 일</div>
                         <p className="mt-1 text-xs leading-5 text-zinc-500">버튼을 누르면 NAVER 6개 API 데이터를 수집·정리하고 ChatGPT Pro 심사 프롬프트를 만듭니다. 최종 주제 판단은 ChatGPT Pro가 하고, 내가 추천 번호를 선택합니다.</p>
                         <div className="mt-2 text-[11px] leading-5 text-zinc-500">
-                          최근 프롬프트 사용 {usedTopics.filter((item) => Date.now() - new Date(item.usedAt).getTime() <= 60 * 86_400_000).length}개 · 60일 중복 방지
+                          최근 프롬프트 사용 {usedTopics.filter((item) => sessionNow - new Date(item.usedAt).getTime() <= 60 * 86_400_000).length}개 · 60일 중복 방지
                         </div>
                         <button
                           type="button"
