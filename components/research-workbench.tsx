@@ -119,6 +119,14 @@ const LEGACY_STORAGE_SEEN_TOPICS = "content-topic-research:seen-topics:v1";
 const STORAGE_SITE_URL = "content-topic-research:wordpress-site-url:v1";
 const STORAGE_SITE_CONTENTS = "content-topic-research:wordpress-site-contents:v1";
 const STORAGE_SITE_SYNCED_AT = "content-topic-research:wordpress-site-synced-at:v1";
+const STORAGE_AUTO_REVIEW_PROMPT = "content-topic-research:auto-review-prompt:v1";
+const STORAGE_AUTO_EVIDENCE_BUNDLES = "content-topic-research:auto-evidence-bundles:v1";
+const STORAGE_AUTO_EDITORIAL_CONTEXT = "content-topic-research:auto-editorial-context:v1";
+const STORAGE_AUTO_SOURCE_QUESTION = "content-topic-research:auto-source-question:v1";
+const STORAGE_AUTO_RESEARCH_SEEDS = "content-topic-research:auto-research-seeds:v1";
+const STORAGE_AUTO_RESEARCH_COOLDOWN = "content-topic-research:auto-research-cooldown:v1";
+const STORAGE_AUTO_RESEARCH_WARNINGS = "content-topic-research:auto-research-warnings:v1";
+const STORAGE_KIN_SOURCE_URL = "content-topic-research:kin-source-url:v1";
 
 const SCORE_FIELDS: Array<{
   key: keyof ScoreInputs;
@@ -448,6 +456,14 @@ export function ResearchWorkbench() {
         const storedSiteUrl = window.localStorage.getItem(STORAGE_SITE_URL);
         const storedSiteContents = window.localStorage.getItem(STORAGE_SITE_CONTENTS);
         const storedSiteSyncedAt = window.localStorage.getItem(STORAGE_SITE_SYNCED_AT);
+        const storedAutoReviewPrompt = window.localStorage.getItem(STORAGE_AUTO_REVIEW_PROMPT);
+        const storedAutoEvidenceBundles = window.localStorage.getItem(STORAGE_AUTO_EVIDENCE_BUNDLES);
+        const storedAutoEditorialContext = window.localStorage.getItem(STORAGE_AUTO_EDITORIAL_CONTEXT);
+        const storedAutoSourceQuestion = window.localStorage.getItem(STORAGE_AUTO_SOURCE_QUESTION);
+        const storedAutoResearchSeeds = window.localStorage.getItem(STORAGE_AUTO_RESEARCH_SEEDS);
+        const storedAutoResearchCooldown = window.localStorage.getItem(STORAGE_AUTO_RESEARCH_COOLDOWN);
+        const storedAutoResearchWarnings = window.localStorage.getItem(STORAGE_AUTO_RESEARCH_WARNINGS);
+        const storedKinSourceUrl = window.localStorage.getItem(STORAGE_KIN_SOURCE_URL);
         if (storedSignals) setSignals(JSON.parse(storedSignals));
         if (storedCandidates) {
           const parsed = JSON.parse(storedCandidates) as Candidate[];
@@ -460,6 +476,27 @@ export function ResearchWorkbench() {
           if (Array.isArray(parsed)) setSiteContents(parsed);
         }
         if (storedSiteSyncedAt) setSiteContentSyncedAt(storedSiteSyncedAt);
+        if (storedAutoReviewPrompt) setAutoReviewPrompt(storedAutoReviewPrompt);
+        if (storedAutoEvidenceBundles) {
+          const parsed = JSON.parse(storedAutoEvidenceBundles) as ResearchEvidenceBundle[];
+          if (Array.isArray(parsed)) setAutoEvidenceBundles(parsed);
+        }
+        if (storedAutoEditorialContext) setAutoEditorialContext(JSON.parse(storedAutoEditorialContext) as EditorialContext);
+        if (storedAutoSourceQuestion) {
+          setAutoSourceQuestion(JSON.parse(storedAutoSourceQuestion) as AutoResearchResponse["sourceQuestion"]);
+        }
+        if (storedAutoResearchSeeds) {
+          const parsed = JSON.parse(storedAutoResearchSeeds) as AutoResearchSeedSummary[];
+          if (Array.isArray(parsed)) setAutoResearchSeeds(parsed);
+        }
+        if (storedAutoResearchCooldown) {
+          setAutoResearchCooldown(JSON.parse(storedAutoResearchCooldown) as AutoResearchResponse["cooldown"]);
+        }
+        if (storedAutoResearchWarnings) {
+          const parsed = JSON.parse(storedAutoResearchWarnings) as string[];
+          if (Array.isArray(parsed)) setAutoResearchWarnings(parsed);
+        }
+        if (storedKinSourceUrl) setKinSourceUrl(storedKinSourceUrl);
         // 이전 버전의 14일 노출 차단 기록은 더 이상 사용하지 않습니다.
         window.localStorage.removeItem(LEGACY_STORAGE_SEEN_TOPICS);
       } catch {
@@ -498,6 +535,39 @@ export function ResearchWorkbench() {
     window.localStorage.setItem(STORAGE_SITE_CONTENTS, JSON.stringify(siteContents));
     if (siteContentSyncedAt) window.localStorage.setItem(STORAGE_SITE_SYNCED_AT, siteContentSyncedAt);
   }, [siteUrl, siteContents, siteContentSyncedAt, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    if (autoReviewPrompt) window.localStorage.setItem(STORAGE_AUTO_REVIEW_PROMPT, autoReviewPrompt);
+    else window.localStorage.removeItem(STORAGE_AUTO_REVIEW_PROMPT);
+
+    window.localStorage.setItem(STORAGE_AUTO_EVIDENCE_BUNDLES, JSON.stringify(autoEvidenceBundles));
+
+    if (autoEditorialContext) window.localStorage.setItem(STORAGE_AUTO_EDITORIAL_CONTEXT, JSON.stringify(autoEditorialContext));
+    else window.localStorage.removeItem(STORAGE_AUTO_EDITORIAL_CONTEXT);
+
+    if (autoSourceQuestion) window.localStorage.setItem(STORAGE_AUTO_SOURCE_QUESTION, JSON.stringify(autoSourceQuestion));
+    else window.localStorage.removeItem(STORAGE_AUTO_SOURCE_QUESTION);
+
+    window.localStorage.setItem(STORAGE_AUTO_RESEARCH_SEEDS, JSON.stringify(autoResearchSeeds));
+    if (autoResearchCooldown) window.localStorage.setItem(STORAGE_AUTO_RESEARCH_COOLDOWN, JSON.stringify(autoResearchCooldown));
+    else window.localStorage.removeItem(STORAGE_AUTO_RESEARCH_COOLDOWN);
+    window.localStorage.setItem(STORAGE_AUTO_RESEARCH_WARNINGS, JSON.stringify(autoResearchWarnings));
+
+    if (kinSourceUrl) window.localStorage.setItem(STORAGE_KIN_SOURCE_URL, kinSourceUrl);
+    else window.localStorage.removeItem(STORAGE_KIN_SOURCE_URL);
+  }, [
+    autoReviewPrompt,
+    autoEvidenceBundles,
+    autoEditorialContext,
+    autoSourceQuestion,
+    autoResearchSeeds,
+    autoResearchCooldown,
+    autoResearchWarnings,
+    kinSourceUrl,
+    hydrated,
+  ]);
 
 
   useEffect(() => {
