@@ -38,3 +38,33 @@
 - 핵심 사실은 현재 유효한 공식 1차 출처로 검증하고 직접 경험·실측을 창작하지 않습니다.
 - 지식iN 답변은 포스팅 홍보용 티저가 아니라 해당 질문에 독립적으로 충분한 답이 되도록 작성합니다.
 - 검색 상위 노출이나 AdSense 승인을 보장하지 않으며 발행 전 사람의 사실·링크·문장 검토를 전제로 합니다.
+
+## im-not-ai 최종 한국어 윤문
+
+최종 WordPress 원고와 네이버 지식iN 추천 답변은 사실 검증·원 질문 대응·SEO 구성을 먼저 완료한 뒤,
+마지막에 [epoko77-ai/im-not-ai](https://github.com/epoko77-ai/im-not-ai)의 한국어 윤문 규칙을
+보수적인 light/monolith 후처리 단계로 적용합니다.
+
+- vendored snapshot: v2.3.2 / commit `9747f036cdc28a1a8aea4dc71fef1f7846eb96f7`
+- upstream 규칙: `vendor/im-not-ai/quick-rules.md`
+- upstream MIT license: `vendor/im-not-ai/LICENSE`
+- 런타임 프롬프트 모듈: `lib/im-not-ai-humanize.ts`
+- 자동 탐색과 지식iN URL 직접 입력 모두 동일하게 적용
+- 사실·주장·수치·날짜·고유명사·제품명·기관명·직접 인용·URL을 문체보다 우선 보존
+- Gutenberg HTML 태그·속성·링크 구조는 윤문 대상에서 제외
+- 목적은 탐지기 우회가 아니라 한국어 번역투·기계적 병렬·상투구·반복 리듬을 줄이는 편집 품질 개선
+
+
+## 최근 자동 탐색·지식iN 프롬프트 저장
+
+같은 브라우저에서 최근 생성한 작성 프롬프트 한 세트를 localStorage에 보존합니다.
+
+- `reviewPrompt`
+- 지식iN `sourceQuestion`
+- Evidence Bundle
+- `editorialContext`
+- 자동 탐색 seed/cooldown/warning
+- 입력한 지식iN URL
+
+페이지를 새로고침하거나 같은 브라우저에서 다시 열어도 마지막 작업을 복원합니다.
+서버·Notion에는 프롬프트 전문을 별도로 저장하지 않습니다.

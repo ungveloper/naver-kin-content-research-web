@@ -4,6 +4,7 @@ import type {
   TopicReviewResult,
 } from "@/lib/types";
 import { PUBLISHING_QUALITY_POLICY, QUESTION_ANSWER_PRIORITY_POLICY } from "@/lib/content-quality";
+import { IM_NOT_AI_FINAL_PASS_CONTRACT, IM_NOT_AI_QUICK_RULES, IM_NOT_AI_SOURCE } from "@/lib/im-not-ai-humanize";
 
 type ReviewPromptContext = {
   generatedAt: string;
@@ -79,6 +80,16 @@ ${QUESTION_ANSWER_PRIORITY_POLICY}
 
 [사람 중심 발행 품질 정책]
 ${PUBLISHING_QUALITY_POLICY}
+
+[최종 한국어 문체 윤문 — im-not-ai]
+모든 사실 검증·원 질문 대응·WordPress 구조·SEO 작성이 끝난 다음 마지막에만 실행한다.
+사용 규칙 출처: ${IM_NOT_AI_SOURCE.repository} · version ${IM_NOT_AI_SOURCE.version} · commit ${IM_NOT_AI_SOURCE.commit}
+${IM_NOT_AI_FINAL_PASS_CONTRACT}
+
+[im-not-ai Quick Rules]
+${IM_NOT_AI_QUICK_RULES}
+
+중요: 위 룰북 안의 Claude/Codex 전용 파일 생성·Python 스크립트 실행·workspace 생성 지시는 현재 ChatGPT Pro 작성 흐름에서는 실행하지 않는다. 여기서는 한국어 탐지·윤문 규칙과 의미 보존·과윤문 방지·자체검증 원칙만 최종 원고에 적용한다.
 
 [최종 품질 게이트]
 - 첫 1~2문장에서 사용자의 핵심 질문에 직접 답하고, 첫 2~3문단 안에서 필요한 조건·예외까지 정리한다.
@@ -192,6 +203,7 @@ research-verification으로 검증이 충분한 경우에는 아래 4개 상위 
 - 질문에 없는 일반론이나 연관 키워드를 링크 유입 또는 SEO를 위해 덧붙이지 않는다.
 - 답변 길이와 형식은 질문 복잡도에 맞춘다. 단순 질문은 자연스러운 짧은 문단으로 답하고 실제 단계가 필요할 때만 번호 목록을 쓴다.
 - 같은 사이트의 다른 지식iN 답변에도 그대로 붙일 수 있는 상투적 인사말·마무리·홍보 문장을 반복하지 않는다.
+- 지식iN 추천 답변도 내용이 완성된 뒤 im-not-ai 최종 윤문 규칙을 동일하게 적용한다. 단 질문자의 조건·수치·제품명·공식 사실·URL은 바꾸지 않는다.
 - 직접 해보지 않은 일을 경험담처럼 말하지 않고, 공식 확인이 필요한 사실은 WordPress 원고에서 검증한 동일한 1차 출처 기준을 사용한다.
 - 원문 질문이 최종 글과 실제로 다른 검색 의도라면 억지로 링크를 붙이지 않는다. 그 경우 # 4에는 “링크 유도 부적합 — 질문 의도가 최종 글과 다름”이라고 명시한다.
 
@@ -445,6 +457,16 @@ ${QUESTION_ANSWER_PRIORITY_POLICY}
 [사람 중심 발행 품질 정책]
 ${PUBLISHING_QUALITY_POLICY}
 
+[최종 한국어 문체 윤문 — im-not-ai]
+모든 사실 검증·원 질문 대응·WordPress 구조·SEO 작성이 끝난 다음 마지막에만 실행한다.
+사용 규칙 출처: ${IM_NOT_AI_SOURCE.repository} · version ${IM_NOT_AI_SOURCE.version} · commit ${IM_NOT_AI_SOURCE.commit}
+${IM_NOT_AI_FINAL_PASS_CONTRACT}
+
+[im-not-ai Quick Rules]
+${IM_NOT_AI_QUICK_RULES}
+
+중요: 위 룰북 안의 Claude/Codex 전용 파일 생성·Python 스크립트 실행·workspace 생성 지시는 현재 ChatGPT Pro 작성 흐름에서는 실행하지 않는다. 여기서는 한국어 탐지·윤문 규칙과 의미 보존·과윤문 방지·자체검증 원칙만 최종 원고에 적용한다.
+
 [선택 후 최종 WordPress 작성 원칙]
 - 의료·건강·영양, 법률·분쟁, 금융·재정, 전문 안전 작업은 선택되었더라도 원고를 만들지 않는다.
 - 직접 경험이 없으면 직접 해본 것처럼 쓰지 않는다.
@@ -561,6 +583,7 @@ research-verification 후보에서 검증이 충분하거나, direct-test 후보
 - 질문에 없는 일반론이나 연관 키워드를 링크 유입 또는 SEO를 위해 덧붙이지 않는다.
 - 답변 길이와 형식은 질문 복잡도에 맞춘다. 단순 질문은 자연스러운 짧은 문단으로 답하고 실제 단계가 필요할 때만 번호 목록을 쓴다.
 - 같은 사이트의 다른 지식iN 답변에도 그대로 붙일 수 있는 상투적 인사말·마무리·홍보 문장을 반복하지 않는다.
+- 지식iN 추천 답변도 내용이 완성된 뒤 im-not-ai 최종 윤문 규칙을 동일하게 적용한다. 단 질문자의 조건·수치·제품명·공식 사실·URL은 바꾸지 않는다.
 - 직접 해보지 않은 일을 경험담처럼 말하지 않고, 공식 확인이 필요한 사실은 WordPress 원고에서 검증한 동일한 1차 출처 기준을 사용한다.
 - 원문 질문이 최종 글과 실제로 다른 검색 의도라면 억지로 링크를 붙이지 않는다. 그 경우 # 4에는 “링크 유도 부적합 — 질문 의도가 최종 글과 다름”이라고 명시한다.
 
