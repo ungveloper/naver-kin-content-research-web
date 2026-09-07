@@ -1,10 +1,12 @@
 import type {
   EditorialContext,
+  EditorialPreflight,
   ResearchEvidenceBundle,
   TopicReviewResult,
 } from "@/lib/types";
 import { MULTI_PASS_FINAL_VALIDATION_POLICY, PUBLISHING_QUALITY_POLICY, QUESTION_ANSWER_PRIORITY_POLICY } from "@/lib/content-quality";
-import { IM_NOT_AI_FINAL_PASS_CONTRACT, IM_NOT_AI_QUICK_RULES, IM_NOT_AI_SOURCE } from "@/lib/im-not-ai-humanize";
+import { IM_NOT_AI_FINAL_PASS_CONTRACT, IM_NOT_AI_SOURCE } from "@/lib/im-not-ai-humanize";
+import { EDITORIAL_DISPOSITION_POLICY, IM_NOT_AI_PROJECT_POLICY, PROMPT_VERSION } from "@/lib/editorial-policy";
 
 type ReviewPromptContext = {
   generatedAt: string;
@@ -16,6 +18,7 @@ type ReviewPromptContext = {
     seenCount: number;
   };
   editorialContext?: EditorialContext;
+  preflight?: EditorialPreflight[];
   focusedSourceQuestion?: {
     url: string;
     title: string;
@@ -39,12 +42,14 @@ export function buildTopicReviewPrompt(
     discoveryScopes: context.seeds,
     cooldown: context.cooldown || null,
     editorialContext: context.editorialContext || null,
+    promptVersion: PROMPT_VERSION,
+    preflight: context.preflight || [],
     focusedSourceQuestion: context.focusedSourceQuestion || null,
     bundles,
   });
 
   if (context.focusedSourceQuestion && bundles.length === 1) {
-    return `너는 생활 문제 해결형 사이트의 수석 리서처이자 최종 편집장이다.
+    return `[프롬프트 버전] ${PROMPT_VERSION}\n\n너는 생활 문제 해결형 사이트의 수석 리서처이자 최종 편집장이다.
 
 이번 요청은 여러 후보 중 하나를 고르는 "주제 심사" 단계가 아니다. 사용자가 네이버 지식iN 원문 질문 하나를 이미 직접 선택했다. 따라서 "오늘의 결론", "추천 포스팅 후보", 순위, 추천 번호, 앱 import용 JSON을 출력하지 않는다.
 
@@ -75,6 +80,12 @@ export function buildTopicReviewPrompt(
 
 중요: research-verification으로 통과한 경우에는 "이 주제를 추천합니다", "1번을 선택하세요", "다음 단계에서 검증하세요" 같은 중간 답변을 절대로 하지 않는다. 네가 지금 바로 공식 원문을 검증하고 최종 결과를 완성한다.
 
+[콘텐츠 형태 판정]
+${EDITORIAL_DISPOSITION_POLICY}
+
+[앱 사전 판정]
+${compactJson(context.preflight || [])}
+
 [원 질문 최우선 정책]
 ${QUESTION_ANSWER_PRIORITY_POLICY}
 
@@ -86,10 +97,10 @@ ${PUBLISHING_QUALITY_POLICY}
 사용 규칙 출처: ${IM_NOT_AI_SOURCE.repository} · version ${IM_NOT_AI_SOURCE.version} · commit ${IM_NOT_AI_SOURCE.commit}
 ${IM_NOT_AI_FINAL_PASS_CONTRACT}
 
-[im-not-ai Quick Rules]
-${IM_NOT_AI_QUICK_RULES}
+[im-not-ai 프로젝트 전용 경량 규칙]
+${IM_NOT_AI_PROJECT_POLICY}
 
-중요: 위 룰북 안의 Claude/Codex 전용 파일 생성·Python 스크립트 실행·workspace 생성 지시는 현재 ChatGPT Pro 작성 흐름에서는 실행하지 않는다. 여기서는 한국어 탐지·윤문 규칙과 의미 보존·과윤문 방지·자체검증 원칙만 최종 원고에 적용한다.
+원본 전체 룰북은 저장소 vendor/im-not-ai에 버전 고정으로 보존하지만, 프롬프트 비대화를 막기 위해 최종 작성에는 위 압축 규칙만 적용한다.
 
 [최종 다중 검수]
 ${MULTI_PASS_FINAL_VALIDATION_POLICY}
@@ -104,8 +115,15 @@ ${MULTI_PASS_FINAL_VALIDATION_POLICY}
 - 외부 자료를 사용했더라도 단순 재서술이 아니라 조건별 판단 기준과 독자 행동으로 재구성한다.
 - WordPress 공개 카테고리는 항상 "생활 가이드"다.
 
+[콘텐츠 형태별 최종 출력]
+- standalone-post + research-verification: 아래 #1~#4 네 개 섹션을 출력한다.
+- existing-post-update: [게시 보류]로 시작하고 가장 가까운 기존 글 URL과 업데이트가 필요한 핵심 항목만 2~5줄 출력한다. 신규 본문 금지.
+- kin-answer-only: WordPress 본문·대표 이미지·SEO 패키지를 만들지 않고 # 4. 네이버 지식iN 답변 추천만 출력한다.
+- reject: [게시 보류]와 핵심 사유만 출력한다.
+- direct-test: 기존 직접 테스트 규칙을 따른다.
+
 [research-verification 통과 시 최종 출력 형식 — 기존 번호 선택 후 아웃풋과 동일하게 유지]
-research-verification으로 검증이 충분한 경우에는 아래 4개 상위 섹션만 출력한다. “게시 전 확인 자료”, 별도 검증 보고서, 내부 판단 메모, 추천 후보, 순위, 앱 import JSON은 출력하지 않는다. # 4는 WordPress 본문에 게시하는 영역이 아니라, 이 글의 출발점이 된 네이버 지식iN 질문에 남길 수 있는 별도 답변 추천 영역이다.
+standalone-post로 판정되고 research-verification으로 검증이 충분한 경우에만 아래 4개 상위 섹션을 출력한다. “게시 전 확인 자료”, 별도 검증 보고서, 내부 판단 메모, 추천 후보, 순위, 앱 import JSON은 출력하지 않는다. # 4는 WordPress 본문에 게시하는 영역이 아니라, 이 글의 출발점이 된 네이버 지식iN 질문에 남길 수 있는 별도 답변 추천 영역이다.
 
 [전체 응답 코드 블록 금지 — 최우선 출력 규칙]
 - 최종 답변 전체를 fenced code block 하나로 절대로 감싸지 않는다.
@@ -220,7 +238,7 @@ research-verification으로 검증이 충분한 경우에는 아래 4개 상위 
 ${evidenceJson}`;
   }
 
-  return `너는 생활 문제 해결형 사이트의 수석 리서처이자 편집장이다. 지금은 글을 작성하는 단계가 아니다.
+  return `[프롬프트 버전] ${PROMPT_VERSION}\n\n너는 생활 문제 해결형 사이트의 수석 리서처이자 편집장이다. 지금은 글을 작성하는 단계가 아니다.
 
 아래 JSON은 Content Topic Research 앱이 NAVER API HUB에서 직접 수집·정리한 오늘 기준의 조사 데이터다.
 앱은 데이터를 모아 정리만 했다. 최종 포스팅 주제의 가치 판단, 우선순위, 직접 테스트 필요 여부는 네가 맡는다.
@@ -430,6 +448,10 @@ scoreInputs는 앱 UI 호환을 위한 보조값이다. 0~5로 판단하되 최�
 3. 사용자가 테스트 결과를 다시 제공하면 그 실제 결과와 공식 원문을 재검증한 뒤 아래 WordPress 형식으로 완성 원고를 작성한다.
 4. 매일 별도 글을 만들지 않고 테스트 종료 후 하나의 결과 글로 통합한다.
 
+[선택 후 콘텐츠 형태 재판정]
+번호를 선택한 뒤에도 ${EDITORIAL_DISPOSITION_POLICY}에 따라 standalone-post / existing-post-update / kin-answer-only / reject를 다시 판정한다.
+standalone-post가 아니면 독립 WordPress 원고를 억지로 만들지 않는다.
+
 [선택 후 실제 발행 검증 게이트 — 번호를 선택하면 반드시 먼저 수행]
 번호를 선택했다고 바로 글부터 길게 쓰지 않는다. 아래 검증을 실제로 수행한 뒤 통과한 경우에만 WordPress 원고를 작성한다.
 
@@ -454,6 +476,12 @@ scoreInputs는 앱 UI 호환을 위한 보조값이다. 0~5로 판단하되 최�
 - 동일 문구를 대량 복붙하는 인상을 피하기 위해 질문의 말투가 아니라 질문의 구체적 조건에 맞춰 답변 구조와 마무리 문장을 조정한다.
 - 상업적 홍보, 과장, 클릭 유도, 반복 링크, 링크를 눌러야만 결론을 알 수 있는 답변은 만들지 않는다.
 
+[콘텐츠 형태 판정]
+${EDITORIAL_DISPOSITION_POLICY}
+
+[앱 사전 판정]
+${compactJson(context.preflight || [])}
+
 [원 질문 최우선 정책]
 ${QUESTION_ANSWER_PRIORITY_POLICY}
 
@@ -465,10 +493,10 @@ ${PUBLISHING_QUALITY_POLICY}
 사용 규칙 출처: ${IM_NOT_AI_SOURCE.repository} · version ${IM_NOT_AI_SOURCE.version} · commit ${IM_NOT_AI_SOURCE.commit}
 ${IM_NOT_AI_FINAL_PASS_CONTRACT}
 
-[im-not-ai Quick Rules]
-${IM_NOT_AI_QUICK_RULES}
+[im-not-ai 프로젝트 전용 경량 규칙]
+${IM_NOT_AI_PROJECT_POLICY}
 
-중요: 위 룰북 안의 Claude/Codex 전용 파일 생성·Python 스크립트 실행·workspace 생성 지시는 현재 ChatGPT Pro 작성 흐름에서는 실행하지 않는다. 여기서는 한국어 탐지·윤문 규칙과 의미 보존·과윤문 방지·자체검증 원칙만 최종 원고에 적용한다.
+원본 전체 룰북은 저장소 vendor/im-not-ai에 버전 고정으로 보존하지만, 프롬프트 비대화를 막기 위해 최종 작성에는 위 압축 규칙만 적용한다.
 
 [최종 다중 검수]
 ${MULTI_PASS_FINAL_VALIDATION_POLICY}
