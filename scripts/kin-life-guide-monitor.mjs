@@ -1,3 +1,8 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
 const NAVER_BASE_URL = process.env.NAVER_API_HUB_BASE_URL || "https://naverapihub.apigw.ntruss.com";
 const NOTION_VERSION = "2026-03-11";
 const SCORE_THRESHOLD = numberEnv("MONITOR_SCORE_THRESHOLD", 8);
@@ -7,10 +12,8 @@ const SEARCH_DISPLAY = 50;
 const MAX_DEDUPE_CHECKS = 14;
 const MAX_RAW_SCORE = 14.5;
 const MAX_EVERGREEN_SCORE = 3;
-const FOCUSED_RESEARCH_BASE_URL = (process.env.FOCUSED_RESEARCH_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
-const WORDPRESS_SITE_URL = (process.env.WORDPRESS_SITE_URL || "https://3minago.com").replace(/\/$/, "");
 const MAX_FOCUSED_PROMPTS_PER_RUN = integerEnv("MONITOR_MAX_FOCUSED_PROMPTS_PER_RUN", 5, 1, 10);
-let cachedWordPressContext;
+const FOCUSED_RESEARCH_CLI = process.env.FOCUSED_RESEARCH_CLI || "./node_modules/.bin/tsx";
 
 const seeds = [
   ["휴대폰 백업 복원 데이터 이전", "디지털 생활"],
@@ -835,96 +838,47 @@ async function backfillMissingQuestionSummaries(props) {
   }
 }
 
-async function focusedApi(path, options = {}) {
-  const response = await fetch(`${FOCUSED_RESEARCH_BASE_URL}${path}`, {
-    method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...(options.headers || {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    signal: AbortSignal.timeout(options.timeoutMs || 120_000),
-  });
-
-  const text = await response.text();
-  const data = safeJson(text);
-  if (!response.ok) {
-    throw new Error(data?.error || `${path} HTTP ${response.status}: ${text.slice(0, 500)}`);
-  }
-  return data;
-}
-
-async function getWordPressContext() {
-  if (cachedWordPressContext) return cachedWordPressContext;
-
-  try {
-    const data = await focusedApi("/api/site-content", {
-      method: "POST",
-      timeoutMs: 45_000,
-      body: {
-        siteUrl: WORDPRESS_SITE_URL,
-        maxPosts: 500,
-      },
-    });
-
-    cachedWordPressContext = {
-      siteUrl: data.siteUrl || WORDPRESS_SITE_URL,
-      siteContents: Array.isArray(data.contents) ? data.contents : [],
-    };
-    console.log(`[KIN monitor] WordPress 기존 글 ${cachedWordPressContext.siteContents.length}건을 중복 검사 기준으로 동기화`);
-  } catch (error) {
-    console.warn(`[KIN monitor] WordPress 중복 검사 데이터 동기화 실패: ${error instanceof Error ? error.message : String(error)}`);
-    cachedWordPressContext = {
-      siteUrl: WORDPRESS_SITE_URL,
-      siteContents: [],
-    };
-  }
-
-  return cachedWordPressContext;
-}
-
 async function generateAndSaveFocusedPrompt(candidate) {
   try {
-    const wordpress = await getWordPressContext();
-
-    // 사람이 Focused Research 입력칸에 URL을 넣었을 때와 완전히 같은 sourceUrl 경로를 호출합니다.
-    const research = await focusedApi("/api/research/auto", {
-      method: "POST",
-      timeoutMs: 150_000,
-      body: {
-        offset: 0,
-        sourceUrl: candidate.link,
-        usedTopics: [],
-        siteUrl: wordpress.siteUrl,
-        siteContents: wordpress.siteContents,
-        searchPerformance: [],
+    const { stdout, stderr } = await execFileAsync(
+      FOCUSED_RESEARCH_CLI,
+      ["scripts/focused-research-cli.ts", candidate.link],
+      {
+        env: process.env,
+        timeout: 300_000,
+        maxBuffer: 32 * 1024 * 1024,
       },
-    });
+    );
 
-    const bundles = Array.isArray(research.evidenceBundles) ? research.evidenceBundles : [];
-    if (!research.reviewPrompt || !research.sourceQuestion || bundles.length !== 1) {
-      const reason = Array.isArray(research.errors) && research.errors.length
-        ? research.errors[0]
-        : "Focused Research Evidence Bundle 또는 최종 작성 프롬프트가 비어 있습니다.";
-      console.warn(`[KIN monitor] 최종 프롬프트 생성 보류: ${candidate.title} · ${reason}`);
-      return false;
+    if (stderr?.trim()) {
+      console.warn(
+        `[KIN monitor] Focused CLI 참고: ${stderr.trim().slice(0, 1200)}`,
+      );
     }
 
-    const saved = await focusedApi("/api/notion/prompt", {
-      method: "POST",
-      timeoutMs: 60_000,
-      body: {
-        sourceUrl: candidate.link,
-        reviewPrompt: research.reviewPrompt,
-        sourceQuestion: research.sourceQuestion,
-      },
-    });
+    const lines = String(stdout || "")
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean);
+    const result = safeJson(lines[lines.length - 1] || "");
+    if (!result?.ok) {
+      throw new Error(
+        "Focused Research CLI가 성공 응답을 반환하지 않았습니다.",
+      );
+    }
 
-    console.log(`[KIN monitor] Focused Research → Notion 최종 프롬프트 저장: ${candidate.title}${saved?.pageUrl ? ` · ${saved.pageUrl}` : ""}`);
+    console.log(
+      `[KIN monitor] Focused Research → Notion 최종 프롬프트 저장: ${candidate.title}`
+      + `${result.pageUrl ? ` · ${result.pageUrl}` : ""}`
+      + `${result.promptVersion ? ` · prompt ${result.promptVersion}` : ""}`,
+    );
     return true;
   } catch (error) {
-    console.warn(`[KIN monitor] Focused Research 자동 프롬프트 실패: ${candidate.title} · ${error instanceof Error ? error.message : String(error)}`);
+    console.warn(
+      `[KIN monitor] Focused Research 자동 프롬프트 실패: ${candidate.title} · ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
     return false;
   }
 }

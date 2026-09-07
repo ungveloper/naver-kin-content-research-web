@@ -43,27 +43,10 @@ jobs:
           MONITOR_SEEDS_PER_RUN: ${{ vars.MONITOR_SEEDS_PER_RUN }}
           MONITOR_MAX_FOCUSED_PROMPTS_PER_RUN: ${{ vars.MONITOR_MAX_FOCUSED_PROMPTS_PER_RUN }}
           WORDPRESS_SITE_URL: ${{ vars.WORDPRESS_SITE_URL }}
-          FOCUSED_RESEARCH_BASE_URL: http://127.0.0.1:3000
+          GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL: ${{ secrets.GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL }}
+          GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY: ${{ secrets.GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY }}
+          GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY_BASE64: ${{ secrets.GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY_BASE64 }}
+          GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL }}
         run: |
           set -euo pipefail
-
-          npm run dev -- --hostname 127.0.0.1 --port 3000 > /tmp/content-topic-research-next.log 2>&1 &
-          NEXT_PID=$!
-          trap 'kill "$NEXT_PID" 2>/dev/null || true' EXIT
-
-          READY=0
-          for attempt in $(seq 1 60); do
-            if curl --silent --show-error --max-time 2 http://127.0.0.1:3000/ >/dev/null 2>&1; then
-              READY=1
-              break
-            fi
-            sleep 1
-          done
-
-          if [ "$READY" -ne 1 ]; then
-            echo "[오류] 로컬 Focused Research API가 60초 안에 시작되지 않았습니다."
-            cat /tmp/content-topic-research-next.log
-            exit 1
-          fi
-
           node scripts/kin-life-guide-monitor.mjs
