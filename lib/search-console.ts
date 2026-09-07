@@ -8,14 +8,6 @@ export type SearchConsoleMetric = {
   position: number;
 };
 
-export type SearchConsolePageMetric = {
-  page: string;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  position: number;
-};
-
 const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 
 function privateKey() {
@@ -145,46 +137,4 @@ export async function fetchSearchConsoleQueryPerformance(
       position: Number(row.position || 0),
     }];
   });
-}
-
-export async function fetchSearchConsolePagePerformance(
-  pageUrl: string,
-): Promise<SearchConsolePageMetric | null> {
-  if (!hasSearchConsoleCredentials() || !pageUrl.trim()) {
-    return null;
-  }
-
-  const range = rolling30Days();
-  const data = await querySearchConsole({
-    ...range,
-    dimensions: ["page"],
-    dimensionFilterGroups: [{
-      filters: [{
-        dimension: "page",
-        operator: "equals",
-        expression: pageUrl.trim(),
-      }],
-    }],
-    rowLimit: 1,
-    dataState: "final",
-  });
-
-  const row = data.rows?.[0];
-  if (!row) {
-    return {
-      page: pageUrl.trim(),
-      clicks: 0,
-      impressions: 0,
-      ctr: 0,
-      position: 0,
-    };
-  }
-
-  return {
-    page: row.keys?.[0] || pageUrl.trim(),
-    clicks: Number(row.clicks || 0),
-    impressions: Number(row.impressions || 0),
-    ctr: Number(row.ctr || 0),
-    position: Number(row.position || 0),
-  };
 }
