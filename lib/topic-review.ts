@@ -341,9 +341,9 @@ research-verification은 직접 테스트가 필요 없거나 적절하지 않�
 [내부 편집 분류]
 앱 호환을 위해 JSON 필드명은 category를 유지하지만, 이 값은 WordPress 공개 카테고리가 아니라 내부 편집 분류다. 추천 후보의 category는 아래 5개 중 정확히 하나만 사용한다.
 - 집 관리
-- 디지털 생활
-- 생활 행정
-- 정리·보관
+- 디지털
+- 행정
+- 정리 보관
 - 제품 사용
 새 내부 편집 분류를 만들지 않는다.
 최종 WordPress 공개 카테고리는 이 값과 무관하게 항상 “생활 가이드”다.
@@ -397,7 +397,7 @@ JSON 스키마:
       "title": "실제 검색 의도가 드러나는 자연스러운 최종 주제 제목",
       "problem": "사용자가 해결하려는 문제 한 문장",
       "audience": "이 문제를 검색할 구체적인 사용자",
-      "category": "집 관리 | 디지털 생활 | 생활 행정 | 정리·보관 | 제품 사용",
+      "category": "집 관리 | 디지털 | 행정 | 정리 보관 | 제품 사용",
       "contentMode": "direct-experience | research-verification | comparison-analysis",
       "searchIntent": "검색자가 최종적으로 알고/결정/해결하려는 것 한 문장",
       "trafficPotential": "high | medium | low",
@@ -684,7 +684,7 @@ export function parseTopicReviewOutput(raw: string): TopicReviewResult {
 
   const validDecisions = new Set(["direct-test", "research-verification"]);
   const validLevels = new Set(["high", "medium", "low"]);
-  const validCategories = new Set(["집 관리", "디지털 생활", "생활 행정", "정리·보관", "제품 사용"]);
+  const validCategories = new Set(["집 관리", "디지털", "행정", "정리 보관", "제품 사용"]);
   const validModes = new Set(["direct-experience", "research-verification", "comparison-analysis"]);
 
   result.reviews.forEach((review, index) => {

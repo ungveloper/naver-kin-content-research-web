@@ -139,10 +139,10 @@ export function getAutoResearchSeeds(date: Date, offset = 0, count = 5): AutoRes
 
 export function autoResearchCategoryLabel(category: AutoResearchCategory) {
   const labels: Record<AutoResearchCategory, string> = {
-    "home-care": "생활기기·집 관리",
-    "digital-life": "디지털 생활",
-    "living-admin": "생활 행정",
-    organization: "정리·보관",
+    "home-care": "집 관리",
+    "digital-life": "디지털",
+    "living-admin": "행정",
+    organization: "정리 보관",
     "seasonal-living": "계절 생활",
   };
   return labels[category];

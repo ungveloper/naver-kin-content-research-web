@@ -511,9 +511,9 @@ function chooseAnchorSeed(title: string, seeds: AutoResearchSeed[]) {
 
 function inferInternalCategoryLabel(text: string) {
   const value = text.toLowerCase();
-  if (/(아이폰|갤럭시|스마트폰|휴대폰|컴퓨터|노트북|윈도우|맥북|앱|계정|백업|복원|동기화|와이파이|블루투스|파일|사진|저장공간|데이터)/.test(value)) return "디지털 생활";
-  if (/(대형폐기물|폐가전|쓰레기|배출|신청|신고|주민센터|구청|시청|공공시설|서류|주소 변경|이사.*절차)/.test(value)) return "생활 행정";
-  if (/(정리|수납|보관|옷장|이불|주방|식품|공간|습기|곰팡이.*보관)/.test(value)) return "정리·보관";
+  if (/(아이폰|갤럭시|스마트폰|휴대폰|컴퓨터|노트북|윈도우|맥북|앱|계정|백업|복원|동기화|와이파이|블루투스|파일|사진|저장공간|데이터)/.test(value)) return "디지털";
+  if (/(대형폐기물|폐가전|쓰레기|배출|신청|신고|주민센터|구청|시청|공공시설|서류|주소 변경|이사.*절차)/.test(value)) return "행정";
+  if (/(정리|수납|보관|옷장|이불|주방|식품|공간|습기|곰팡이.*보관)/.test(value)) return "정리 보관";
   if (/(사용법|사용 방법|제품|기기|설정|설치|조립|소모품|필터 교체|충전기|리모컨)/.test(value)) return "제품 사용";
   return "집 관리";
 }

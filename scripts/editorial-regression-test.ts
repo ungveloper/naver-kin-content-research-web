@@ -35,7 +35,7 @@ function bundle(fixture: Fixture): ResearchEvidenceBundle {
   return {
     id: fixture.name,
     query: "테스트 질문",
-    discoveryCategory: "디지털 생활",
+    discoveryCategory: "디지털",
     discoveredProblem:
       "x".repeat(fixture.questionLength ?? 220),
     sourceSignalIds: [],
@@ -324,6 +324,60 @@ if (!kinMonitorSource.includes("fullQuestionRichText")) {
   failures += 1;
   console.error("[회귀 실패] 자동 KIN 저장이 질문 전체 본문 helper를 사용하지 않습니다.");
 }
+const categoryContractSources = {
+  types: readFileSync("lib/types.ts", "utf8"),
+  topicReview: topicReviewSource,
+  autoResearch: readFileSync("lib/auto-research.ts", "utf8"),
+  autoRoute: autoResearchSource,
+  kinMonitor: kinMonitorSource,
+  research: readFileSync("lib/research.ts", "utf8"),
+};
+
+for (const required of [
+  "디지털",
+  "행정",
+  "집 관리",
+  "정리 보관",
+  "제품 사용",
+]) {
+  if (!categoryContractSources.topicReview.includes(required)) {
+    failures += 1;
+    console.error(`[회귀 실패] 새 내부 분류가 topic-review에 없습니다: ${required}`);
+  }
+}
+
+for (const [sourceName, source] of Object.entries(categoryContractSources)) {
+  for (const forbidden of [
+    '"디지털 생활"',
+    '"생활 행정"',
+    '"정리·보관"',
+  ]) {
+    if (source.includes(forbidden)) {
+      failures += 1;
+      console.error(
+        `[회귀 실패] ${sourceName}에 이전 내부 분류 값이 남아 있습니다: ${forbidden}`,
+      );
+    }
+  }
+}
+
+for (const [sourceName, source] of [
+  ["direct Notion route", notionPromptSource],
+  ["KIN monitor", kinMonitorSource],
+]) {
+  if (!source.includes('icon: { type: "emoji", emoji: "✔️" }')) {
+    failures += 1;
+    console.error(`[회귀 실패] ${sourceName}의 새 페이지에 ✔️ 아이콘이 없습니다.`);
+  }
+}
+
+if (!kinMonitorSource.includes('properties[prop.name] = { select: { name: value } };')) {
+  failures += 1;
+  console.error(
+    "[회귀 실패] KIN monitor가 새 Notion select 이름을 직접 기록하도록 설정되지 않았습니다.",
+  );
+}
+
 if (
   autoResearchSource.includes(".trim()\n    .slice(0, 8000)")
   || kinMonitorSource.includes(".trim()\n    .slice(0, 8000)")

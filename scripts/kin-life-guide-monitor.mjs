@@ -16,21 +16,21 @@ const MAX_FOCUSED_PROMPTS_PER_RUN = integerEnv("MONITOR_MAX_FOCUSED_PROMPTS_PER_
 const FOCUSED_RESEARCH_CLI = process.env.FOCUSED_RESEARCH_CLI || "./node_modules/.bin/tsx";
 
 const seeds = [
-  ["휴대폰 백업 복원 데이터 이전", "디지털 생활"],
-  ["아이폰 사진 파일 옮기기 백업", "디지털 생활"],
-  ["갤럭시 백업 복원 Smart Switch", "디지털 생활"],
-  ["앱 데이터 계정 동기화 초기화", "디지털 생활"],
-  ["컴퓨터 파일 백업 복구 저장", "디지털 생활"],
-  ["와이파이 블루투스 연결 설정 안됨", "디지털 생활"],
-  ["카카오톡 대화 백업 복원 PC", "디지털 생활"],
-  ["클라우드 사진 파일 동기화 문제", "디지털 생활"],
+  ["휴대폰 백업 복원 데이터 이전", "디지털"],
+  ["아이폰 사진 파일 옮기기 백업", "디지털"],
+  ["갤럭시 백업 복원 Smart Switch", "디지털"],
+  ["앱 데이터 계정 동기화 초기화", "디지털"],
+  ["컴퓨터 파일 백업 복구 저장", "디지털"],
+  ["와이파이 블루투스 연결 설정 안됨", "디지털"],
+  ["카카오톡 대화 백업 복원 PC", "디지털"],
+  ["클라우드 사진 파일 동기화 문제", "디지털"],
 
-  ["대형폐기물 신청 배출 수거", "생활 행정"],
-  ["분리수거 재활용 버리는 방법", "생활 행정"],
-  ["주민센터 온라인 민원 신청 방법", "생활 행정"],
-  ["전입신고 주소변경 생활 민원", "생활 행정"],
-  ["우편 택배 반송 수령 생활", "생활 행정"],
-  ["공공서비스 신청 준비물 생활", "생활 행정"],
+  ["대형폐기물 신청 배출 수거", "행정"],
+  ["분리수거 재활용 버리는 방법", "행정"],
+  ["주민센터 온라인 민원 신청 방법", "행정"],
+  ["전입신고 주소변경 생활 민원", "행정"],
+  ["우편 택배 반송 수령 생활", "행정"],
+  ["공공서비스 신청 준비물 생활", "행정"],
 
   ["세탁기 청소 필터 배수 사용", "집 관리"],
   ["에어컨 필터 청소 관리", "집 관리"],
@@ -38,10 +38,10 @@ const seeds = [
   ["집 곰팡이 습기 환기 관리", "집 관리"],
   ["욕실 주방 청소 보관 관리", "집 관리"],
 
-  ["이불 옷 보관 정리 방법", "정리·보관"],
-  ["식재료 냉장 냉동 보관 방법", "정리·보관"],
-  ["이사 짐 정리 보관 방법", "정리·보관"],
-  ["서류 사진 파일 정리 보관", "정리·보관"],
+  ["이불 옷 보관 정리 방법", "정리 보관"],
+  ["식재료 냉장 냉동 보관 방법", "정리 보관"],
+  ["이사 짐 정리 보관 방법", "정리 보관"],
+  ["서류 사진 파일 정리 보관", "정리 보관"],
 
   ["제품 사용법 설정 초기화", "제품 사용"],
   ["제품 연결 설치 사용 안됨", "제품 사용"],
@@ -71,11 +71,11 @@ const hardExcludeGroups = {
 };
 
 const areaTerms = {
-  "디지털 생활": [
+  "디지털": [
     "휴대폰", "스마트폰", "아이폰", "갤럭시", "안드로이드", "컴퓨터", "노트북", "pc", "윈도우", "앱", "계정",
     "백업", "복원", "동기화", "클라우드", "icloud", "파일", "사진", "데이터", "카카오톡", "와이파이", "블루투스",
   ],
-  "생활 행정": [
+  "행정": [
     "대형폐기물", "폐기물", "분리수거", "재활용", "배출", "수거", "주민센터", "민원", "전입신고", "주소변경",
     "신고", "신청", "우편", "택배", "공공", "구청", "시청", "동사무소",
   ],
@@ -83,7 +83,7 @@ const areaTerms = {
     "세탁기", "냉장고", "에어컨", "청소", "필터", "배수", "욕실", "주방", "환기", "습기", "곰팡이", "건조",
     "세척", "집안", "가전",
   ],
-  "정리·보관": [
+  "정리 보관": [
     "보관", "정리", "수납", "냉장", "냉동", "이불", "옷", "식재료", "서류", "짐", "보관함", "정리함",
   ],
   "제품 사용": [
@@ -1138,6 +1138,7 @@ async function createNotionPage(candidate, props) {
     method: "POST",
     body: {
       parent: { type: "data_source_id", data_source_id: process.env.NOTION_DATA_SOURCE_ID },
+      icon: { type: "emoji", emoji: "✔️" },
       properties,
     },
   });
@@ -1146,8 +1147,7 @@ async function createNotionPage(candidate, props) {
 function setExistingSelect(properties, prop, value) {
   if (!prop || !value) return;
   if (prop.type === "select") {
-    const options = prop.select?.options || [];
-    if (options.some((option) => option.name === value)) properties[prop.name] = { select: { name: value } };
+    properties[prop.name] = { select: { name: value } };
   } else if (prop.type === "status") {
     const options = prop.status?.options || [];
     if (options.some((option) => option.name === value)) properties[prop.name] = { status: { name: value } };

@@ -29,10 +29,10 @@ export type ExperimentPlan = {
 export type ReviewLevel = "high" | "medium" | "low";
 
 export type FixedContentCategory =
+  | "디지털"
+  | "행정"
   | "집 관리"
-  | "디지털 생활"
-  | "생활 행정"
-  | "정리·보관"
+  | "정리 보관"
   | "제품 사용";
 
 export type ResearchEvidenceItem = {
