@@ -326,6 +326,34 @@ if (!kinMonitorSource.includes("fullQuestionRichText")) {
   failures += 1;
   console.error("[회귀 실패] 자동 KIN 저장이 질문 전체 본문 helper를 사용하지 않습니다.");
 }
+if (
+  kinMonitorSource.includes("backfillMissingQuestions(")
+  || kinMonitorSource.includes("updateNotionQuestion(")
+) {
+  failures += 1;
+  console.error(
+    "[회귀 실패] Insert-only Notion 환경에서 기존 페이지 질문 속성을 PATCH하는 경로가 다시 생겼습니다.",
+  );
+}
+
+if (!kinMonitorSource.includes("notionPagePropertyPatchUnavailable")) {
+  failures += 1;
+  console.error(
+    "[회귀 실패] Notion 기존 페이지 속성 PATCH 403 비치명 처리 플래그가 없습니다.",
+  );
+}
+
+if (
+  !kinMonitorSource.includes(
+    'rich_text: fullQuestionRichText(candidate.questionText)',
+  )
+) {
+  failures += 1;
+  console.error(
+    "[회귀 실패] 새 Notion 페이지 생성 시 질문 원문 전체 저장 로직이 없습니다.",
+  );
+}
+
 const categoryContractSources = {
   types: readFileSync("lib/types.ts", "utf8"),
   topicReview: topicReviewSource,

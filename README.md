@@ -285,7 +285,8 @@ Notion은 발행 후 성과 관리가 아니라 **질문 원문과 최종 ChatGP
 - 원문 HTML에서 추출한 질문은 요약하지 않고 전체 본문을 `질문`에 저장합니다.
 - 직접 URL mode와 GitHub Actions 자동 탐색 모두 같은 기준을 사용합니다.
 - 기존 `질문 요약`/`요약` 속성명도 마이그레이션 기간 동안 읽을 수 있지만 새 기준은 `질문`입니다.
-- 질문 본문이 비어 있는 기존 후보는 자동 monitor가 다시 원문을 확인해 `질문` 속성을 채웁니다.
+- 새 후보는 페이지 생성 시 `질문` 속성에 원문 전체를 저장합니다.
+- 기존 페이지의 `질문` 속성은 Notion Update content 권한을 요구하므로 자동 backfill하지 않습니다. 기존 페이지라도 원문은 매 실행에서 다시 읽어 Focused Research와 프롬프트 생성에 사용합니다.
 - `게시 URL`, `게시일`, `30일 노출`, `30일 클릭`, `30일 CTR`, `30일 평균순위`는 자동 생성 schema에서 제거했습니다.
 - `Content Performance Feedback` workflow도 제거했습니다.
 - Search Console query 데이터는 원한다면 새 프롬프트의 주제 판단 신호로만 계속 사용할 수 있습니다.
@@ -335,3 +336,14 @@ WordPress `standalone-post`가 실제로 생성되면 추천 답변은:
 즉 **답을 일부러 숨겨 클릭을 유도하지 않지만, 답변이 충분하다는 이유로 관련 WordPress 참고 링크를 빼지도 않습니다.**
 
 `kin-answer-only`, `existing-post-update`, `reject`, `direct-test`처럼 새 WordPress 글이 없는 경우에는 placeholder 링크를 만들지 않습니다.
+
+## Notion Insert-only 권한 대응
+
+GitHub Actions용 Notion Integration이 새 페이지/블록 삽입은 가능하지만 기존 페이지 속성 수정(Update content)은 허용하지 않는 환경에서도 KIN Monitor가 중단되지 않도록 했습니다.
+
+- 기존 Notion 페이지의 `질문` 속성을 자동 PATCH/backfill하지 않음
+- 새 Notion 페이지는 생성 시 `질문` 원문 전체를 함께 저장
+- 기존 페이지도 지식iN 원문을 다시 읽어 Focused Research 입력에는 전체 질문을 사용
+- `파이프라인 상태` 같은 기존 페이지 속성 PATCH가 403이면 경고만 남기고 해당 실행에서 추가 속성 PATCH를 생략
+- 프롬프트 본문 저장은 기존 `replace_content → Insert content block fallback` 경로를 그대로 사용
+- 따라서 기존 페이지 속성 Update content 권한이 없어도 프롬프트 생성 자체를 우선해서 계속 진행

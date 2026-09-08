@@ -15,6 +15,8 @@ const MAX_EVERGREEN_SCORE = 3;
 const MAX_FOCUSED_PROMPTS_PER_RUN = integerEnv("MONITOR_MAX_FOCUSED_PROMPTS_PER_RUN", 5, 1, 10);
 const FOCUSED_RESEARCH_CLI = process.env.FOCUSED_RESEARCH_CLI || "./node_modules/.bin/tsx";
 
+let notionPagePropertyPatchUnavailable = false;
+
 const seeds = [
   ["휴대폰 백업 복원 데이터 이전", "디지털"],
   ["아이폰 사진 파일 옮기기 백업", "디지털"],
@@ -130,8 +132,6 @@ async function main() {
     );
   }
 
-  await backfillMissingQuestions(notionProperties);
-
   const selectedSeeds = rotatingSeedBatch();
   console.log(`[KIN monitor] ${selectedSeeds.length}개 탐색어 조회 · 기준점수 ${SCORE_THRESHOLD}`);
 
@@ -177,10 +177,10 @@ async function main() {
     }
 
     if (existingPage) {
-      if (candidate.questionText && notionProperties.question) {
-        await updateNotionQuestion(existingPage.id, candidate, notionProperties);
-      }
-
+      // 기존 페이지의 속성 PATCH는 Notion Update content 권한이 없는
+      // Insert-only Integration에서 403이 발생할 수 있습니다.
+      // 질문 본문은 Focused Research 입력으로 그대로 사용하고,
+      // 기존 페이지에서는 프롬프트 생성/저장을 우선합니다.
       await updatePipelineState(
         existingPage.id,
         notionProperties,
@@ -788,7 +788,7 @@ async function updatePipelineState(
   errorMessage = "",
   incrementRetry = false,
 ) {
-  if (!pageId) return;
+  if (!pageId || notionPagePropertyPatchUnavailable) return;
 
   const properties = {};
 
@@ -848,12 +848,23 @@ async function updatePipelineState(
       },
     );
   } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    if (message.startsWith("Notion 403:")) {
+      notionPagePropertyPatchUnavailable = true;
+      console.warn(
+        "[KIN monitor] 기존 Notion 페이지의 속성 Update content 권한이 없어 "
+        + "파이프라인 상태 기록은 이번 실행에서 생략합니다. "
+        + "프롬프트 생성/본문 저장은 계속 진행합니다.",
+      );
+      return;
+    }
+
     console.warn(
-      `[KIN monitor] 파이프라인 상태 기록 실패: ${
-        error instanceof Error
-          ? error.message
-          : String(error)
-      }`,
+      `[KIN monitor] 파이프라인 상태 기록 실패: ${message}`,
     );
   }
 }
@@ -871,73 +882,6 @@ async function findNotionPageByUrl(url, propertyName) {
     },
   });
   return Array.isArray(result?.results) ? result.results[0] || null : null;
-}
-
-async function updateNotionQuestion(pageId, candidate, props) {
-  if (!pageId || !props.question || !candidate.questionText) return;
-  const properties = {
-    [props.question.name]: {
-      rich_text: fullQuestionRichText(candidate.questionText),
-    },
-  };
-  await notionFetch(`/v1/pages/${encodeURIComponent(pageId)}`, {
-    method: "PATCH",
-    body: { properties },
-  });
-}
-
-async function backfillMissingQuestions(props) {
-  if (!props.question || !props.url || !props.title) return;
-
-  const result = await notionFetch(`/v1/data_sources/${encodeURIComponent(process.env.NOTION_DATA_SOURCE_ID)}/query`, {
-    method: "POST",
-    body: {
-      page_size: 10,
-      filter: {
-        or: [
-          {
-            property: props.question.name,
-            rich_text: { is_empty: true },
-          },
-          {
-            property: props.question.name,
-            rich_text: {
-              contains: "원문 질문 본문을 자동으로 확인하지 못했습니다",
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  const pages = Array.isArray(result?.results) ? result.results : [];
-  if (!pages.length) return;
-
-  console.log(`[KIN monitor] 기존 '질문' 본문 backfill ${pages.length}건 확인`);
-
-  for (const page of pages) {
-    const url = page?.properties?.[props.url.name]?.url || "";
-    if (!url) continue;
-
-    const titleParts = page?.properties?.[props.title.name]?.title || [];
-    const title = Array.isArray(titleParts)
-      ? titleParts.map((item) => item?.plain_text || item?.text?.content || "").join("").trim()
-      : "";
-
-    const candidate = await hydrateKinQuestion({
-      link: url,
-      title: title || "지식iN 질문",
-    });
-
-    if (candidate.questionText) {
-      await updateNotionQuestion(page.id, candidate, props);
-      console.log(`[KIN monitor] 기존 '질문' 본문 backfill 완료: ${candidate.title}`);
-    } else {
-      console.warn(`[KIN monitor] 기존 '질문' 본문 backfill 실패: ${url}`);
-    }
-
-    await sleep(360);
-  }
 }
 
 async function generateAndSaveFocusedPrompt(candidate, pageId, props) {
