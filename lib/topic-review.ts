@@ -4,7 +4,14 @@ import type {
   ResearchEvidenceBundle,
   TopicReviewResult,
 } from "@/lib/types";
-import { FINAL_OUTPUT_POLISH_POLICY, MULTI_PASS_FINAL_VALIDATION_POLICY, PUBLISHING_QUALITY_POLICY, QUESTION_ANSWER_PRIORITY_POLICY } from "@/lib/content-quality";
+import {
+  FINAL_OUTPUT_POLISH_POLICY,
+  KIN_TRAFFIC_BRIDGE_POLICY,
+  MULTI_PASS_FINAL_VALIDATION_POLICY,
+  PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY,
+  PUBLISHING_QUALITY_POLICY,
+  QUESTION_ANSWER_PRIORITY_POLICY,
+} from "@/lib/content-quality";
 import { IM_NOT_AI_FINAL_PASS_CONTRACT } from "@/lib/im-not-ai-humanize";
 import {
   IM_NOT_AI_UPSTREAM_POLICY,
@@ -97,6 +104,12 @@ ${QUESTION_ANSWER_PRIORITY_POLICY}
 [사람 중심 발행 품질 정책]
 ${PUBLISHING_QUALITY_POLICY}
 
+[공개 WordPress 본문과 원 질문 분리]
+${PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY}
+
+[지식iN 답변의 WordPress 참고 유입]
+${KIN_TRAFFIC_BRIDGE_POLICY}
+
 [최종 한국어 문체 윤문 — im-not-ai]
 모든 사실 검증·원 질문 대응·WordPress 구조·SEO 작성이 끝난 다음 마지막에만 실행한다.
 사용 규칙 출처: ${IM_NOT_AI_UPSTREAM_SOURCE.repository} · version ${IM_NOT_AI_UPSTREAM_SOURCE.version} · commit ${IM_NOT_AI_UPSTREAM_SOURCE.commit}
@@ -153,6 +166,10 @@ standalone-post로 판정되고 research-verification으로 검증이 충분한 
 <!-- 게시용 본문 시작 -->
 
 # 실제 WordPress 게시 제목 한 줄
+
+이 #1 영역은 지식iN 질문을 내부 편집 자료로만 사용하고, 방문자에게 특정 질문의 존재나 출처를 드러내지 않는 독립 공개 글이다.
+“질문에 나온”, “질문처럼”, “질문의 경우”, “질문자”, “원 질문”, “지식iN에서”처럼 출처를 암시하는 표현을 쓰지 않는다.
+원 질문에서 답을 바꾸는 조건은 보존하되 일반 독자용 조건·상황·사례로 자연스럽게 재구성한다.
 
 여기부터 실제 게시될 Markdown 본문. H2/H3·표·목록·FAQ·결론의 구성은 주제에 맞게 자유롭게 설계한다.
 이 섹션 전체는 절대로 fenced code block으로 감싸지 않는다. ChatGPT 화면에서 제목·문단·표·목록이 일반 Markdown으로 실제 렌더링되어 보여야 한다. “# 1. 게시용 본문” 직전이나 직후에 코드 펜스를 열지 않는다.
@@ -222,14 +239,14 @@ standalone-post로 판정되고 research-verification으로 검증이 충분한 
 질문에 대한 핵심 답을 첫 문장에서 바로 제시한다.
 질문의 결과를 바꾸는 조건과 지금 확인할 항목만 남겨 3~6개의 자연스러운 문장 또는 1~2개의 짧은 문단으로 답한다.
 WordPress 본문을 요약해서 다시 쓰지 말고, 질문에 없는 일반론·배경·SEO 표현은 제거한다.
-추가 세부 기준을 보는 것이 실제로 도움이 될 때만 답변 맨 끝에 중립적인 참고 문장과 링크 1개를 둔다.
-링크가 불필요하면 링크 문장과 [[게시 후 실제 글 URL]]을 출력하지 않는다. 링크가 필요하지만 발행 전이면 [[게시 후 실제 글 URL]]을 한 번만 표시한다.
+질문의 핵심 답을 완결한 뒤, 이 standalone-post에서 추가로 확인할 수 있는 제품별 기준·예외·확인 순서 같은 실제 가치를 자연스럽게 안내하는 참고 문장 1개를 맨 끝에 둔다.
+이번 출력은 WordPress #1 본문이 함께 생성되는 standalone-post이므로 마지막 참고 문장 뒤에 [[게시 후 실제 글 URL]]을 정확히 한 번 반드시 표시한다. 답변이 충분하다는 이유로 이 참고 링크를 생략하지 않는다.
 \`\`\`
 
 [지식iN 답변 작성 원칙 — 광고처럼 보이지 않게]
 - 링크를 누르지 않아도 질문자가 핵심 결론을 이해하고 기본 행동을 할 수 있을 정도로 답을 완결한다. 결론을 일부러 숨기거나 “자세한 건 링크에서”로 끝내지 않는다.
 - WordPress 본문의 긴 문단을 그대로 복사하지 않는다. 질문자가 실제로 묻는 조건에 맞춰 짧게 다시 답한다.
-- 외부 링크는 답변 맨 끝에 최대 1개만 둔다. “꼭 클릭”, “더 많은 정보”, “완벽 정리”, “제가 운영하는 블로그” 같은 홍보 문구를 쓰지 않는다.
+- #1 WordPress 게시용 본문이 생성되는 standalone-post라면 외부 링크를 답변 맨 끝에 정확히 1개 둔다. 발행 전에는 [[게시 후 실제 글 URL]]을 사용한다. “꼭 클릭”, “더 많은 정보”, “완벽 정리”, “제가 운영하는 블로그” 같은 홍보 문구는 쓰지 않는다.
 - 마무리는 “추가로 조건별 예외나 확인 순서까지 필요하시면 아래 정리도 참고하실 수 있습니다.”처럼 선택권을 남기는 낮은 압력의 문장으로 쓴다. 모든 글에 똑같은 문장을 반복하지 말고 질문 맥락에 맞게 자연스럽게 바꾼다.
 - 답변 자체에 이미 충분한 정보가 있어야 하며, 링크는 추가 설명을 위한 참고 자료 역할만 해야 한다.
 - 지식iN 답변은 원 질문의 핵심 물음과 조건에 먼저 답한다. 포스팅 내용을 요약하는 것이 목적이 아니라 해당 질문자에게 필요한 답을 주는 것이 목적이다.
@@ -500,6 +517,12 @@ ${QUESTION_ANSWER_PRIORITY_POLICY}
 [사람 중심 발행 품질 정책]
 ${PUBLISHING_QUALITY_POLICY}
 
+[공개 WordPress 본문과 원 질문 분리]
+${PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY}
+
+[지식iN 답변의 WordPress 참고 유입]
+${KIN_TRAFFIC_BRIDGE_POLICY}
+
 [최종 한국어 문체 윤문 — im-not-ai]
 모든 사실 검증·원 질문 대응·WordPress 구조·SEO 작성이 끝난 다음 마지막에만 실행한다.
 사용 규칙 출처: ${IM_NOT_AI_UPSTREAM_SOURCE.repository} · version ${IM_NOT_AI_UPSTREAM_SOURCE.version} · commit ${IM_NOT_AI_UPSTREAM_SOURCE.commit}
@@ -554,6 +577,10 @@ research-verification 후보에서 검증이 충분하거나, direct-test 후보
 <!-- 게시용 본문 시작 -->
 
 # 실제 WordPress 게시 제목 한 줄
+
+이 #1 영역은 지식iN 질문을 내부 편집 자료로만 사용하고, 방문자에게 특정 질문의 존재나 출처를 드러내지 않는 독립 공개 글이다.
+“질문에 나온”, “질문처럼”, “질문의 경우”, “질문자”, “원 질문”, “지식iN에서”처럼 출처를 암시하는 표현을 쓰지 않는다.
+원 질문에서 답을 바꾸는 조건은 보존하되 일반 독자용 조건·상황·사례로 자연스럽게 재구성한다.
 
 여기부터 실제 게시될 Markdown 본문. H2/H3·표·목록·FAQ·결론의 구성은 주제에 맞게 자유롭게 설계한다.
 이 섹션 전체는 절대로 fenced code block으로 감싸지 않는다. ChatGPT 화면에서 제목·문단·표·목록이 일반 Markdown으로 실제 렌더링되어 보여야 한다. “# 1. 게시용 본문” 직전이나 직후에 코드 펜스를 열지 않는다.
@@ -621,14 +648,14 @@ research-verification 후보에서 검증이 충분하거나, direct-test 후보
 \`\`\`text
 질문에 대한 핵심 답을 첫 1~2문장에서 바로 제시한다.
 필요한 조건·예외·확인 순서를 2~5줄 정도로 짧게 정리한다.
-마지막에는 질문자가 이미 핵심 답을 충분히 받은 상태에서도 추가적인 조건·예외·단계별 확인이 필요할 때만 참고할 수 있다는 중립적인 안내 문장 1개를 둔다.
-게시 전이라 실제 WordPress URL이 아직 없다면 [[게시 후 실제 글 URL]]이라고 표시한다.
+질문의 핵심 답을 충분히 제공한 뒤, 최종 WordPress 글에서 더 확인할 수 있는 조건·예외·단계별 기준을 짧게 안내하는 자연스러운 참고 문장 1개를 맨 끝에 둔다.
+#1 WordPress 게시용 본문이 실제로 생성되는 경우에는 게시 전 placeholder인 [[게시 후 실제 글 URL]]을 정확히 한 번 반드시 표시한다.
 \`\`\`
 
 [지식iN 답변 작성 원칙 — 광고처럼 보이지 않게]
 - 링크를 누르지 않아도 질문자가 핵심 결론을 이해하고 기본 행동을 할 수 있을 정도로 답을 완결한다. 결론을 일부러 숨기거나 “자세한 건 링크에서”로 끝내지 않는다.
 - WordPress 본문의 긴 문단을 그대로 복사하지 않는다. 질문자가 실제로 묻는 조건에 맞춰 짧게 다시 답한다.
-- 외부 링크는 답변 맨 끝에 최대 1개만 둔다. “꼭 클릭”, “더 많은 정보”, “완벽 정리”, “제가 운영하는 블로그” 같은 홍보 문구를 쓰지 않는다.
+- #1 WordPress 게시용 본문이 생성되는 standalone-post라면 외부 링크를 답변 맨 끝에 정확히 1개 둔다. 발행 전에는 [[게시 후 실제 글 URL]]을 사용한다. “꼭 클릭”, “더 많은 정보”, “완벽 정리”, “제가 운영하는 블로그” 같은 홍보 문구는 쓰지 않는다.
 - 마무리는 “추가로 조건별 예외나 확인 순서까지 필요하시면 아래 정리도 참고하실 수 있습니다.”처럼 선택권을 남기는 낮은 압력의 문장으로 쓴다. 모든 글에 똑같은 문장을 반복하지 말고 질문 맥락에 맞게 자연스럽게 바꾼다.
 - 답변 자체에 이미 충분한 정보가 있어야 하며, 링크는 추가 설명을 위한 참고 자료 역할만 해야 한다.
 - 지식iN 답변은 원 질문의 핵심 물음과 조건에 먼저 답한다. 포스팅 내용을 요약하는 것이 목적이 아니라 해당 질문자에게 필요한 답을 주는 것이 목적이다.

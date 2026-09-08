@@ -235,6 +235,8 @@ for (const required of [
   "EDITORIAL_DISPOSITION_POLICY",
   "MULTI_PASS_FINAL_VALIDATION_POLICY",
   "FINAL_OUTPUT_POLISH_POLICY",
+  "PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY",
+  "KIN_TRAFFIC_BRIDGE_POLICY",
   "ACTIVE_PROMPT_VERSION",
 ]) {
   if (!topicReviewSource.includes(required)) {
@@ -384,6 +386,65 @@ if (
 ) {
   failures += 1;
   console.error("[회귀 실패] 질문 추출에 8,000자 잘림이 다시 들어왔습니다.");
+}
+
+const contentQualitySource = readFileSync(
+  "lib/content-quality.ts",
+  "utf8",
+);
+const researchPromptSource = readFileSync(
+  "lib/research.ts",
+  "utf8",
+);
+
+for (const required of [
+  "PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY",
+  "KIN_TRAFFIC_BRIDGE_POLICY",
+  "[[게시 후 실제 글 URL]]",
+  "질문에 나온",
+]) {
+  if (!contentQualitySource.includes(required)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] 공개본문/지식iN 유입 정책에서 ${required}를 찾지 못했습니다.`,
+    );
+  }
+}
+
+for (const [sourceName, source] of [
+  ["topic-review", topicReviewSource],
+  ["research", researchPromptSource],
+]) {
+  for (const required of [
+    "PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY",
+    "KIN_TRAFFIC_BRIDGE_POLICY",
+  ]) {
+    if (!source.includes(required)) {
+      failures += 1;
+      console.error(
+        `[회귀 실패] ${sourceName}에 ${required}가 연결되지 않았습니다.`,
+      );
+    }
+  }
+}
+
+for (const forbidden of [
+  "링크가 불필요하면 [[게시 후 실제 글 URL]] 자체를 출력하지 않는다.",
+  "링크가 불필요하면 링크 문장과 [[게시 후 실제 글 URL]]을 출력하지 않는다.",
+]) {
+  if (contentQualitySource.includes(forbidden) || topicReviewSource.includes(forbidden)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] 이전 선택적 링크 규칙이 남아 있습니다: ${forbidden}`,
+    );
+  }
+}
+
+if (!contentQualitySource.includes("standalone-post")) {
+  failures += 1;
+  console.error(
+    "[회귀 실패] 지식iN 유입 링크가 standalone-post 조건으로 제한되지 않았습니다.",
+  );
 }
 
 if (
