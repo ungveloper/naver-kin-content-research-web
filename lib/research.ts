@@ -7,6 +7,8 @@ import type {
   SignalKind,
 } from "@/lib/types";
 import {
+  ARTICLE_EVIDENCE_DISCIPLINE_POLICY,
+  KIN_ANSWER_READABILITY_POLICY,
   KIN_TRAFFIC_BRIDGE_POLICY,
   PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY,
 } from "@/lib/content-quality";
@@ -264,6 +266,12 @@ ${PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY}
 
 [지식iN 답변의 WordPress 참고 유입]
 ${KIN_TRAFFIC_BRIDGE_POLICY}
+
+[비교·제품·수치 글의 근거 규율]
+${ARTICLE_EVIDENCE_DISCIPLINE_POLICY}
+
+[지식iN 추천 답변 가독성]
+${KIN_ANSWER_READABILITY_POLICY}
 
 [주제 후보]
 ${candidate.title}

@@ -235,6 +235,8 @@ for (const required of [
   "EDITORIAL_DISPOSITION_POLICY",
   "MULTI_PASS_FINAL_VALIDATION_POLICY",
   "FINAL_OUTPUT_POLISH_POLICY",
+  "ARTICLE_EVIDENCE_DISCIPLINE_POLICY",
+  "KIN_ANSWER_READABILITY_POLICY",
   "PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY",
   "KIN_TRAFFIC_BRIDGE_POLICY",
   "ACTIVE_PROMPT_VERSION",
@@ -424,6 +426,51 @@ const researchPromptSource = readFileSync(
   "lib/research.ts",
   "utf8",
 );
+
+for (const required of [
+  "ARTICLE_EVIDENCE_DISCIPLINE_POLICY",
+  "KIN_ANSWER_READABILITY_POLICY",
+  "zero-width",
+  "공식 용량이 아닌 단순 계산값",
+  "[[게시 후 실제 글 URL]]은 CTA 문장과 붙이지 말고",
+]) {
+  if (!contentQualitySource.includes(required)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] 강화된 콘텐츠/지식iN 품질 정책 누락: ${required}`,
+    );
+  }
+}
+
+for (const [sourceName, source] of [
+  ["topic-review", topicReviewSource],
+  ["research", researchPromptSource],
+]) {
+  for (const required of [
+    "ARTICLE_EVIDENCE_DISCIPLINE_POLICY",
+    "KIN_ANSWER_READABILITY_POLICY",
+  ]) {
+    if (!source.includes(required)) {
+      failures += 1;
+      console.error(
+        `[회귀 실패] ${sourceName}에 ${required}가 연결되지 않았습니다.`,
+      );
+    }
+  }
+}
+
+for (const required of [
+  "text 코드 블록이 정확히 8개",
+  "[[게시 후 실제 글 URL]]은 홍보 문장과 같은 줄에 붙이지 않고 마지막 줄에 단독으로 둔다",
+  "상품평 평균·리뷰 개수처럼 자주 바뀌는 숫자는 핵심 판단에 꼭 필요하지 않으면 빼고",
+]) {
+  if (!topicReviewSource.includes(required)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] 최종 출력 형식/근거 규율 누락: ${required}`,
+    );
+  }
+}
 
 for (const required of [
   "PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY",
