@@ -1,10 +1,10 @@
-import { writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const REPOSITORY = "epoko77-ai/im-not-ai";
 const API = `https://api.github.com/repos/${REPOSITORY}`;
 const RAW = `https://raw.githubusercontent.com/${REPOSITORY}`;
-const USER_AGENT = "content-topic-research-web-im-not-ai-sync";
+const USER_AGENT = "naver-kin-content-research-web-im-not-ai-sync";
 
 async function fetchText(url) {
   const response = await fetch(url, {
@@ -26,9 +26,7 @@ async function fetchJson(url) {
 }
 
 function versionFromReadme(readme) {
-  const match = readme.match(
-    /Humanize KR[^v\n]*v(\d+\.\d+\.\d+)/i,
-  );
+  const match = readme.match(/Humanize KR[^v\n]*v(\d+\.\d+\.\d+)/i);
   return match?.[1] || "unknown";
 }
 
@@ -36,15 +34,47 @@ function compactUpstreamPolicy(quickRules) {
   const lines = quickRules.split(/\r?\n/);
   const keep = [];
   const importantIds = new Set([
-    "A-1", "A-2", "A-3", "A-7", "A-8", "A-9", "A-10",
-    "A-16", "A-18", "A-19", "A-20", "A-21", "A-24",
-    "B-1", "B-2",
-    "C-2", "C-5", "C-7", "C-8", "C-9", "C-10", "C-11",
-    "D-1", "D-2", "D-3", "D-4", "D-6", "D-7", "D-8",
-    "D-9", "D-10", "D-11", "D-12",
-    "E-1", "E-2", "E-7",
-    "F-4", "F-5", "F-7",
-    "G-1", "G-2",
+    "A-1",
+    "A-2",
+    "A-3",
+    "A-7",
+    "A-8",
+    "A-9",
+    "A-10",
+    "A-16",
+    "A-18",
+    "A-19",
+    "A-20",
+    "A-21",
+    "A-24",
+    "B-1",
+    "B-2",
+    "C-2",
+    "C-5",
+    "C-7",
+    "C-8",
+    "C-9",
+    "C-10",
+    "C-11",
+    "D-1",
+    "D-2",
+    "D-3",
+    "D-4",
+    "D-6",
+    "D-7",
+    "D-8",
+    "D-9",
+    "D-10",
+    "D-11",
+    "D-12",
+    "E-1",
+    "E-2",
+    "E-7",
+    "F-4",
+    "F-5",
+    "F-7",
+    "G-1",
+    "G-2",
   ]);
 
   for (const line of lines) {
@@ -52,10 +82,10 @@ function compactUpstreamPolicy(quickRules) {
     if (!trimmed) continue;
 
     if (
-      trimmed.startsWith("**Do-NOT")
-      || trimmed.startsWith("**서법 보존")
-      || trimmed.startsWith("**내용 앵커")
-      || trimmed.startsWith("**과윤문 가드")
+      trimmed.startsWith("**Do-NOT") ||
+      trimmed.startsWith("**서법 보존") ||
+      trimmed.startsWith("**내용 앵커") ||
+      trimmed.startsWith("**과윤문 가드")
     ) {
       keep.push(trimmed);
       continue;
@@ -73,10 +103,9 @@ function compactUpstreamPolicy(quickRules) {
     );
   }
 
-  return [
-    "[im-not-ai 최신 upstream 핵심 규칙 — 자동 생성]",
-    ...keep,
-  ].join("\n");
+  return ["[im-not-ai 최신 upstream 핵심 규칙 — 자동 생성]", ...keep].join(
+    "\n",
+  );
 }
 
 function tsString(value) {
@@ -92,17 +121,13 @@ async function main() {
 
   const [readme, quickRules, license] = await Promise.all([
     fetchText(`${RAW}/${sha}/README.md`),
-    fetchText(
-      `${RAW}/${sha}/skills/humanize-korean/references/quick-rules.md`,
-    ),
+    fetchText(`${RAW}/${sha}/skills/humanize-korean/references/quick-rules.md`),
     fetchText(`${RAW}/${sha}/LICENSE`),
   ]);
 
   const version = versionFromReadme(readme);
   const policy = compactUpstreamPolicy(quickRules);
-  const checksum = createHash("sha256")
-    .update(quickRules)
-    .digest("hex");
+  const checksum = createHash("sha256").update(quickRules).digest("hex");
 
   await mkdir("vendor/im-not-ai", { recursive: true });
   await writeFile(
@@ -146,11 +171,7 @@ export const IM_NOT_AI_UPSTREAM_SOURCE = {
 export const IM_NOT_AI_UPSTREAM_POLICY = ${tsString(policy)};
 `;
 
-  await writeFile(
-    "lib/im-not-ai-upstream-policy.ts",
-    generated,
-    "utf8",
-  );
+  await writeFile("lib/im-not-ai-upstream-policy.ts", generated, "utf8");
 
   console.log(
     `[im-not-ai sync] ${version} · ${sha.slice(0, 12)} · 핵심 규칙 ${policy.split(/\n/).length - 1}개`,

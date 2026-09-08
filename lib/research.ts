@@ -1,3 +1,9 @@
+import {
+  ARTICLE_EVIDENCE_DISCIPLINE_POLICY,
+  KIN_ANSWER_READABILITY_POLICY,
+  KIN_TRAFFIC_BRIDGE_POLICY,
+  PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY,
+} from "@/lib/content-quality";
 import type {
   Candidate,
   ContentMode,
@@ -6,12 +12,6 @@ import type {
   Signal,
   SignalKind,
 } from "@/lib/types";
-import {
-  ARTICLE_EVIDENCE_DISCIPLINE_POLICY,
-  KIN_ANSWER_READABILITY_POLICY,
-  KIN_TRAFFIC_BRIDGE_POLICY,
-  PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY,
-} from "@/lib/content-quality";
 
 export const SIGNAL_LABELS: Record<SignalKind, string> = {
   "naver-blog": "네이버 블로그",
@@ -51,8 +51,11 @@ const PENALTY_POINTS: Record<keyof Penalties, number> = {
 };
 
 export function scoreCandidate(candidate: Candidate) {
-  const positive = (Object.keys(POSITIVE_WEIGHTS) as (keyof ScoreInputs)[]).reduce(
-    (sum, key) => sum + (candidate.scoreInputs[key] / 5) * POSITIVE_WEIGHTS[key],
+  const positive = (
+    Object.keys(POSITIVE_WEIGHTS) as (keyof ScoreInputs)[]
+  ).reduce(
+    (sum, key) =>
+      sum + (candidate.scoreInputs[key] / 5) * POSITIVE_WEIGHTS[key],
     0,
   );
 
@@ -86,22 +89,116 @@ export function stripHtml(value: string) {
 
 const EXCLUDED_CONTENT_TERMS = [
   // 의료·건강
-  "암", "당뇨", "고혈압", "저혈압", "혈당", "질환", "질병", "진단", "처방", "복용", "의약품", "의료", "병원", "의원", "치과", "한의원", "치료", "수술",
-  "통증", "두통", "복통", "감기", "독감", "알레르기", "생리", "임신", "출산", "예방접종", "백신", "영양제", "정신건강", "우울증", "공황장애", "불안장애", "탈모약",
+  "암",
+  "당뇨",
+  "고혈압",
+  "저혈압",
+  "혈당",
+  "질환",
+  "질병",
+  "진단",
+  "처방",
+  "복용",
+  "의약품",
+  "의료",
+  "병원",
+  "의원",
+  "치과",
+  "한의원",
+  "치료",
+  "수술",
+  "통증",
+  "두통",
+  "복통",
+  "감기",
+  "독감",
+  "알레르기",
+  "생리",
+  "임신",
+  "출산",
+  "예방접종",
+  "백신",
+  "영양제",
+  "정신건강",
+  "우울증",
+  "공황장애",
+  "불안장애",
+  "탈모약",
   // 법률·분쟁
-  "법률", "법적", "소송", "고소", "고발", "형사", "민사", "변호사", "법원", "판결", "합의금", "이혼", "양육권",
-  "상속", "유언", "임대차 분쟁", "보증금 분쟁", "노동법", "해고", "산재", "과태료", "벌금", "처벌",
+  "법률",
+  "법적",
+  "소송",
+  "고소",
+  "고발",
+  "형사",
+  "민사",
+  "변호사",
+  "법원",
+  "판결",
+  "합의금",
+  "이혼",
+  "양육권",
+  "상속",
+  "유언",
+  "임대차 분쟁",
+  "보증금 분쟁",
+  "노동법",
+  "해고",
+  "산재",
+  "과태료",
+  "벌금",
+  "처벌",
   // 금융·재정·세무·급여
-  "대출", "보험", "주식", "코인", "투자", "펀드", "증권", "금리", "신용점수", "채무", "파산", "회생", "세금", "세무",
-  "종합소득세", "부가세", "양도세", "상속세", "연금", "국민연금", "퇴직금", "수급자", "기초생활", "복지급여", "지원금",
-  "실업급여", "재테크", "부동산 투자", "전세대출", "청약",
+  "대출",
+  "보험",
+  "주식",
+  "코인",
+  "투자",
+  "펀드",
+  "증권",
+  "금리",
+  "신용점수",
+  "채무",
+  "파산",
+  "회생",
+  "세금",
+  "세무",
+  "종합소득세",
+  "부가세",
+  "양도세",
+  "상속세",
+  "연금",
+  "국민연금",
+  "퇴직금",
+  "수급자",
+  "기초생활",
+  "복지급여",
+  "지원금",
+  "실업급여",
+  "재테크",
+  "부동산 투자",
+  "전세대출",
+  "청약",
   // 전문 안전 작업
-  "가스 누출", "가스누출", "감전", "누전", "화재", "석면", "구조 균열", "붕괴", "전기공사", "가스공사",
+  "가스 누출",
+  "가스누출",
+  "감전",
+  "누전",
+  "화재",
+  "석면",
+  "구조 균열",
+  "붕괴",
+  "전기공사",
+  "가스공사",
 ];
 
 export function isExcludedContentTopic(value: string) {
-  const normalized = stripHtml(value || "").replace(/\s+/g, " ").toLowerCase();
-  return EXCLUDED_CONTENT_TERMS.some((term) => normalized.includes(term.toLowerCase()));
+  const normalized = stripHtml(value || "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  return EXCLUDED_CONTENT_TERMS.some((term) =>
+    normalized.includes(term.toLowerCase()),
+  );
 }
 
 export function signalRole(kind: SignalKind) {
@@ -134,10 +231,20 @@ export function hasDirectTestEvidence(candidate: Candidate) {
   return value.length >= 20;
 }
 
-export function candidateTestPlanPrompt(candidate: Candidate, signals: Signal[]) {
-  const linked = signals.filter((signal) => candidate.sourceSignalIds.includes(signal.id));
+export function candidateTestPlanPrompt(
+  candidate: Candidate,
+  signals: Signal[],
+) {
+  const linked = signals.filter((signal) =>
+    candidate.sourceSignalIds.includes(signal.id),
+  );
   const sourceText = linked.length
-    ? linked.map((signal, index) => `${index + 1}. [${SIGNAL_LABELS[signal.kind]}] ${signal.title}${signal.url ? `\n   ${signal.url}` : ""}`).join("\n")
+    ? linked
+        .map(
+          (signal, index) =>
+            `${index + 1}. [${SIGNAL_LABELS[signal.kind]}] ${signal.title}${signal.url ? `\n   ${signal.url}` : ""}`,
+        )
+        .join("\n")
     : "연결된 조사 신호 없음";
   const plan = candidate.experimentPlan;
 
@@ -197,11 +304,13 @@ Markdown 표
 - 사진/스크린샷/수치/시간/실패 기록 중 확보할 것
 
 [테스트 종료 후]
-실제 기록 전체를 Content Topic Research의 ‘직접 확보한 증거’에 붙여 넣은 뒤 최종 글 프롬프트를 생성하라고 안내한다.`;
+실제 기록 전체를 Naver KIN Content Research의 ‘직접 확보한 증거’에 붙여 넣은 뒤 최종 글 프롬프트를 생성하라고 안내한다.`;
 }
 
 export function candidatePrompt(candidate: Candidate, signals: Signal[]) {
-  const linked = signals.filter((signal) => candidate.sourceSignalIds.includes(signal.id));
+  const linked = signals.filter((signal) =>
+    candidate.sourceSignalIds.includes(signal.id),
+  );
   const sources = linked.length
     ? linked
         .map(
@@ -221,9 +330,10 @@ export function candidatePrompt(candidate: Candidate, signals: Signal[]) {
     `고유 분석 ${candidate.scoreInputs.originalValue}/5`,
     `지속성 ${candidate.scoreInputs.evergreen}/5`,
   ].join(" · ");
-  const penaltySummary = (Object.keys(candidate.penalties) as (keyof Penalties)[])
-    .filter((key) => candidate.penalties[key])
-    .join(", ") || "없음";
+  const penaltySummary =
+    (Object.keys(candidate.penalties) as (keyof Penalties)[])
+      .filter((key) => candidate.penalties[key])
+      .join(", ") || "없음";
   const aiReviewSummary = candidate.aiReview
     ? `[ChatGPT Pro 주제 심사 결과]
 - 심사 방식: ${candidate.aiReview.decision === "direct-test" ? "직접 테스트형" : "조사·검증형"}
@@ -775,7 +885,8 @@ export function defaultCandidate(signal?: Signal): Candidate {
     scoreInputs: {
       siteFit: 4,
       problemSpecificity: 3,
-      demand: signal?.metrics?.impressions || signal?.metrics?.trendScore ? 4 : 3,
+      demand:
+        signal?.metrics?.impressions || signal?.metrics?.trendScore ? 4 : 3,
       officialEvidence: 3,
       originalValue: 3,
       evergreen: 4,

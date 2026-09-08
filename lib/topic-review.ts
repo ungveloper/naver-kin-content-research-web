@@ -1,9 +1,3 @@
-import type {
-  EditorialContext,
-  EditorialPreflight,
-  ResearchEvidenceBundle,
-  TopicReviewResult,
-} from "@/lib/types";
 import {
   ARTICLE_EVIDENCE_DISCIPLINE_POLICY,
   FINAL_OUTPUT_POLISH_POLICY,
@@ -14,13 +8,22 @@ import {
   PUBLISHING_QUALITY_POLICY,
   QUESTION_ANSWER_PRIORITY_POLICY,
 } from "@/lib/content-quality";
+import {
+  EDITORIAL_DISPOSITION_POLICY,
+  IM_NOT_AI_PROJECT_POLICY,
+} from "@/lib/editorial-policy";
 import { IM_NOT_AI_FINAL_PASS_CONTRACT } from "@/lib/im-not-ai-humanize";
 import {
   IM_NOT_AI_UPSTREAM_POLICY,
   IM_NOT_AI_UPSTREAM_SOURCE,
 } from "@/lib/im-not-ai-upstream-policy";
-import { EDITORIAL_DISPOSITION_POLICY, IM_NOT_AI_PROJECT_POLICY } from "@/lib/editorial-policy";
 import { ACTIVE_PROMPT_VERSION } from "@/lib/prompt-version";
+import type {
+  EditorialContext,
+  EditorialPreflight,
+  ResearchEvidenceBundle,
+  TopicReviewResult,
+} from "@/lib/types";
 
 type ReviewPromptContext = {
   generatedAt: string;
@@ -286,7 +289,7 @@ ${evidenceJson}`;
 
   return `[프롬프트 버전] ${ACTIVE_PROMPT_VERSION}\n\n너는 생활 문제 해결형 사이트의 수석 리서처이자 편집장이다. 지금은 글을 작성하는 단계가 아니다.
 
-아래 JSON은 Content Topic Research 앱이 NAVER API HUB에서 직접 수집·정리한 오늘 기준의 조사 데이터다.
+아래 JSON은 Naver KIN Content Research 앱이 NAVER API HUB에서 직접 수집·정리한 오늘 기준의 조사 데이터다.
 앱은 데이터를 모아 정리만 했다. 최종 포스팅 주제의 가치 판단, 우선순위, 직접 테스트 필요 여부는 네가 맡는다.
 최근성은 중요한 힌트지만 하드 탈락 기준이 아니다. 최근 질문이 강하면 가산점으로 보되, 오래 반복되는 에버그린 문제는 최신 이슈보다 더 높은 우선순위를 받을 수 있다.
 
@@ -718,7 +721,12 @@ function extractJsonBlock(raw: string) {
 }
 
 function isNumberInRange(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 5;
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 5
+  );
 }
 
 export function parseTopicReviewOutput(raw: string): TopicReviewResult {
@@ -729,7 +737,9 @@ export function parseTopicReviewOutput(raw: string): TopicReviewResult {
   try {
     parsed = JSON.parse(jsonText);
   } catch {
-    throw new Error("ChatGPT 심사 결과의 마지막 JSON 코드블록을 읽지 못했습니다. 답변 전체를 그대로 붙여넣어 주세요.");
+    throw new Error(
+      "ChatGPT 심사 결과의 마지막 JSON 코드블록을 읽지 못했습니다. 답변 전체를 그대로 붙여넣어 주세요.",
+    );
   }
 
   if (!parsed || typeof parsed !== "object") {
@@ -738,31 +748,82 @@ export function parseTopicReviewOutput(raw: string): TopicReviewResult {
 
   const result = parsed as TopicReviewResult;
   if (!Array.isArray(result.reviews)) {
-    throw new Error("reviews 배열을 찾지 못했습니다. ChatGPT 답변 전체를 그대로 붙여넣어 주세요.");
+    throw new Error(
+      "reviews 배열을 찾지 못했습니다. ChatGPT 답변 전체를 그대로 붙여넣어 주세요.",
+    );
   }
 
   const validDecisions = new Set(["direct-test", "research-verification"]);
   const validLevels = new Set(["high", "medium", "low"]);
-  const validCategories = new Set(["집 관리", "디지털", "행정", "정리 보관", "제품 사용"]);
-  const validModes = new Set(["direct-experience", "research-verification", "comparison-analysis"]);
+  const validCategories = new Set([
+    "집 관리",
+    "디지털",
+    "행정",
+    "정리 보관",
+    "제품 사용",
+  ]);
+  const validModes = new Set([
+    "direct-experience",
+    "research-verification",
+    "comparison-analysis",
+  ]);
 
   result.reviews.forEach((review, index) => {
-    if (!review || typeof review !== "object") throw new Error(`${index + 1}번째 reviews 항목이 올바르지 않습니다.`);
-    if (!review.bundleId || typeof review.bundleId !== "string") throw new Error(`${index + 1}번째 후보에 bundleId가 없습니다.`);
-    if (!validDecisions.has(review.decision)) throw new Error(`${index + 1}번째 후보의 decision 값은 direct-test 또는 research-verification이어야 합니다.`);
-    if (!review.title || !review.problem) throw new Error(`${index + 1}번째 후보의 title/problem이 비어 있습니다.`);
-    if (!validCategories.has(review.category)) throw new Error(`${index + 1}번째 후보의 category가 고정 5개 범위를 벗어났습니다.`);
-    if (!validModes.has(review.contentMode)) throw new Error(`${index + 1}번째 후보의 contentMode가 올바르지 않습니다.`);
-    [review.trafficPotential, review.repeatedDemand, review.contentSaturation, review.evidenceQuality, review.originalityPotential].forEach((level) => {
-      if (!validLevels.has(level)) throw new Error(`${index + 1}번째 후보의 high/medium/low 평가값이 올바르지 않습니다.`);
+    if (!review || typeof review !== "object")
+      throw new Error(`${index + 1}번째 reviews 항목이 올바르지 않습니다.`);
+    if (!review.bundleId || typeof review.bundleId !== "string")
+      throw new Error(`${index + 1}번째 후보에 bundleId가 없습니다.`);
+    if (!validDecisions.has(review.decision))
+      throw new Error(
+        `${index + 1}번째 후보의 decision 값은 direct-test 또는 research-verification이어야 합니다.`,
+      );
+    if (!review.title || !review.problem)
+      throw new Error(`${index + 1}번째 후보의 title/problem이 비어 있습니다.`);
+    if (!validCategories.has(review.category))
+      throw new Error(
+        `${index + 1}번째 후보의 category가 고정 5개 범위를 벗어났습니다.`,
+      );
+    if (!validModes.has(review.contentMode))
+      throw new Error(
+        `${index + 1}번째 후보의 contentMode가 올바르지 않습니다.`,
+      );
+    [
+      review.trafficPotential,
+      review.repeatedDemand,
+      review.contentSaturation,
+      review.evidenceQuality,
+      review.originalityPotential,
+    ].forEach((level) => {
+      if (!validLevels.has(level))
+        throw new Error(
+          `${index + 1}번째 후보의 high/medium/low 평가값이 올바르지 않습니다.`,
+        );
     });
     const score = review.scoreInputs;
-    if (!score || ![score.siteFit, score.problemSpecificity, score.demand, score.officialEvidence, score.originalValue, score.evergreen].every(isNumberInRange)) {
-      throw new Error(`${index + 1}번째 후보의 scoreInputs는 0~5 숫자여야 합니다.`);
+    if (
+      !score ||
+      ![
+        score.siteFit,
+        score.problemSpecificity,
+        score.demand,
+        score.officialEvidence,
+        score.originalValue,
+        score.evergreen,
+      ].every(isNumberInRange)
+    ) {
+      throw new Error(
+        `${index + 1}번째 후보의 scoreInputs는 0~5 숫자여야 합니다.`,
+      );
     }
     if (review.decision === "direct-test") {
-      if (!review.experimentPlan?.recommended || !Number.isInteger(review.experimentPlan.durationDays) || review.experimentPlan.durationDays < 1) {
-        throw new Error(`${index + 1}번째 직접 테스트 후보의 experimentPlan이 부족합니다.`);
+      if (
+        !review.experimentPlan?.recommended ||
+        !Number.isInteger(review.experimentPlan.durationDays) ||
+        review.experimentPlan.durationDays < 1
+      ) {
+        throw new Error(
+          `${index + 1}번째 직접 테스트 후보의 experimentPlan이 부족합니다.`,
+        );
       }
     }
   });

@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import {
   CheckIcon,
   CopyIcon,
@@ -29,8 +26,11 @@ import {
   stripHtml,
   verdict,
 } from "@/lib/research";
-import { buildTopicReviewPrompt, parseTopicReviewOutput } from "@/lib/topic-review";
 import { createSampleData } from "@/lib/sample-data";
+import {
+  buildTopicReviewPrompt,
+  parseTopicReviewOutput,
+} from "@/lib/topic-review";
 import type {
   Candidate,
   ContentMode,
@@ -44,6 +44,9 @@ import type {
   SiteContentRecord,
   TopicReviewItem,
 } from "@/lib/types";
+import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Tab = "discover" | "candidates" | "prompt";
 type NaverType = "blog" | "cafe" | "kin" | "news" | "web";
@@ -115,33 +118,66 @@ type SiteContentSyncResponse = {
   error?: string;
 };
 
-const STORAGE_SIGNALS = "content-topic-research:signals:v1";
-const STORAGE_CANDIDATES = "content-topic-research:candidates:v1";
-const STORAGE_USED_TOPICS = "content-topic-research:used-topics:v1";
-const LEGACY_STORAGE_SEEN_TOPICS = "content-topic-research:seen-topics:v1";
-const STORAGE_SITE_URL = "content-topic-research:wordpress-site-url:v1";
-const STORAGE_SITE_CONTENTS = "content-topic-research:wordpress-site-contents:v1";
-const STORAGE_SITE_SYNCED_AT = "content-topic-research:wordpress-site-synced-at:v1";
-const STORAGE_AUTO_REVIEW_PROMPT = "content-topic-research:auto-review-prompt:v1";
-const STORAGE_AUTO_EVIDENCE_BUNDLES = "content-topic-research:auto-evidence-bundles:v1";
-const STORAGE_AUTO_EDITORIAL_CONTEXT = "content-topic-research:auto-editorial-context:v1";
-const STORAGE_AUTO_SOURCE_QUESTION = "content-topic-research:auto-source-question:v1";
-const STORAGE_AUTO_RESEARCH_SEEDS = "content-topic-research:auto-research-seeds:v1";
-const STORAGE_AUTO_RESEARCH_COOLDOWN = "content-topic-research:auto-research-cooldown:v1";
-const STORAGE_AUTO_RESEARCH_WARNINGS = "content-topic-research:auto-research-warnings:v1";
-const STORAGE_KIN_SOURCE_URL = "content-topic-research:kin-source-url:v1";
+const STORAGE_SIGNALS = "naver-kin-content-research:signals:v1";
+const STORAGE_CANDIDATES = "naver-kin-content-research:candidates:v1";
+const STORAGE_USED_TOPICS = "naver-kin-content-research:used-topics:v1";
+const LEGACY_STORAGE_SEEN_TOPICS = "naver-kin-content-research:seen-topics:v1";
+const STORAGE_SITE_URL = "naver-kin-content-research:wordpress-site-url:v1";
+const STORAGE_SITE_CONTENTS =
+  "naver-kin-content-research:wordpress-site-contents:v1";
+const STORAGE_SITE_SYNCED_AT =
+  "naver-kin-content-research:wordpress-site-synced-at:v1";
+const STORAGE_AUTO_REVIEW_PROMPT =
+  "naver-kin-content-research:auto-review-prompt:v1";
+const STORAGE_AUTO_EVIDENCE_BUNDLES =
+  "naver-kin-content-research:auto-evidence-bundles:v1";
+const STORAGE_AUTO_EDITORIAL_CONTEXT =
+  "naver-kin-content-research:auto-editorial-context:v1";
+const STORAGE_AUTO_SOURCE_QUESTION =
+  "naver-kin-content-research:auto-source-question:v1";
+const STORAGE_AUTO_RESEARCH_SEEDS =
+  "naver-kin-content-research:auto-research-seeds:v1";
+const STORAGE_AUTO_RESEARCH_COOLDOWN =
+  "naver-kin-content-research:auto-research-cooldown:v1";
+const STORAGE_AUTO_RESEARCH_WARNINGS =
+  "naver-kin-content-research:auto-research-warnings:v1";
+const STORAGE_KIN_SOURCE_URL = "naver-kin-content-research:kin-source-url:v1";
 
 const SCORE_FIELDS: Array<{
   key: keyof ScoreInputs;
   label: string;
   hint: string;
 }> = [
-  { key: "siteFit", label: "사이트 주제 적합성", hint: "내 사이트의 기존 독자와 연결되는가" },
-  { key: "problemSpecificity", label: "문제의 구체성", hint: "‘했는데/갑자기/계속’처럼 막힌 지점이 분명한가" },
-  { key: "demand", label: "검색 유입 가능성", hint: "검색어트렌드와 반복 질문에서 실제 수요가 확인되는가" },
-  { key: "officialEvidence", label: "공식 근거", hint: "원문·제조사·공공기관으로 검증 가능한가" },
-  { key: "originalValue", label: "고유 분석 가능성", hint: "비교표·판단 흐름·도구·데이터를 새로 만들 수 있는가" },
-  { key: "evergreen", label: "지속성", hint: "일회성 이슈가 아니라 계속 검색될 문제인가" },
+  {
+    key: "siteFit",
+    label: "사이트 주제 적합성",
+    hint: "내 사이트의 기존 독자와 연결되는가",
+  },
+  {
+    key: "problemSpecificity",
+    label: "문제의 구체성",
+    hint: "‘했는데/갑자기/계속’처럼 막힌 지점이 분명한가",
+  },
+  {
+    key: "demand",
+    label: "검색 유입 가능성",
+    hint: "검색어트렌드와 반복 질문에서 실제 수요가 확인되는가",
+  },
+  {
+    key: "officialEvidence",
+    label: "공식 근거",
+    hint: "원문·제조사·공공기관으로 검증 가능한가",
+  },
+  {
+    key: "originalValue",
+    label: "고유 분석 가능성",
+    hint: "비교표·판단 흐름·도구·데이터를 새로 만들 수 있는가",
+  },
+  {
+    key: "evergreen",
+    label: "지속성",
+    hint: "일회성 이슈가 아니라 계속 검색될 문제인가",
+  },
 ];
 
 const PENALTY_FIELDS: Array<{
@@ -149,11 +185,31 @@ const PENALTY_FIELDS: Array<{
   label: string;
   hint: string;
 }> = [
-  { key: "ymyl", label: "YMYL 위험", hint: "건강·안전·재정처럼 높은 신뢰가 필요한 주제" },
-  { key: "newsRewrite", label: "뉴스 재작성형", hint: "뉴스 내용을 다시 쓰는 것이 핵심이면 감점" },
-  { key: "duplicate", label: "기존 글과 중복", hint: "검색 의도가 사실상 같은 페이지가 이미 있음" },
-  { key: "aiCommodity", label: "AI 일반론형", hint: "웹 조사 없이도 AI가 쉽게 쓸 수 있는 주제" },
-  { key: "weakEvidence", label: "공식 근거 부족", hint: "사실 검증에 쓸 1차 자료가 부족함" },
+  {
+    key: "ymyl",
+    label: "YMYL 위험",
+    hint: "건강·안전·재정처럼 높은 신뢰가 필요한 주제",
+  },
+  {
+    key: "newsRewrite",
+    label: "뉴스 재작성형",
+    hint: "뉴스 내용을 다시 쓰는 것이 핵심이면 감점",
+  },
+  {
+    key: "duplicate",
+    label: "기존 글과 중복",
+    hint: "검색 의도가 사실상 같은 페이지가 이미 있음",
+  },
+  {
+    key: "aiCommodity",
+    label: "AI 일반론형",
+    hint: "웹 조사 없이도 AI가 쉽게 쓸 수 있는 주제",
+  },
+  {
+    key: "weakEvidence",
+    label: "공식 근거 부족",
+    hint: "사실 검증에 쓸 1차 자료가 부족함",
+  },
 ];
 
 const SOURCE_OPTIONS: Array<{ kind: SignalKind; label: string }> = [
@@ -163,7 +219,11 @@ const SOURCE_OPTIONS: Array<{ kind: SignalKind; label: string }> = [
   { kind: "manual", label: "직접 메모" },
 ];
 
-const NAVER_TYPES: Array<{ value: NaverType; label: string; kind: SignalKind }> = [
+const NAVER_TYPES: Array<{
+  value: NaverType;
+  label: string;
+  kind: SignalKind;
+}> = [
   { value: "blog", label: "블로그", kind: "naver-blog" },
   { value: "cafe", label: "카페", kind: "naver-cafe" },
   { value: "kin", label: "지식iN", kind: "naver-kin" },
@@ -180,7 +240,10 @@ function reviewLevelLabel(value: "high" | "medium" | "low") {
 }
 
 function needsDirectTest(candidate: Candidate) {
-  return Boolean(candidate.experimentPlan?.recommended) && !hasDirectTestEvidence(candidate);
+  return (
+    Boolean(candidate.experimentPlan?.recommended) &&
+    !hasDirectTestEvidence(candidate)
+  );
 }
 
 function promptForCandidate(candidate: Candidate, signals: Signal[]) {
@@ -259,7 +322,13 @@ function isUsableCandidate(candidate: Candidate) {
   );
 }
 
-function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "good" | "warn" | "bad" | "blue" }) {
+function Badge({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: "neutral" | "good" | "warn" | "bad" | "blue";
+}) {
   const toneClass = {
     neutral: "border-zinc-200 bg-zinc-50 text-zinc-600",
     good: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -268,38 +337,78 @@ function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "ne
     blue: "border-sky-200 bg-sky-50 text-sky-700",
   }[tone];
 
-  return <span className={classNames("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium", toneClass)}>{children}</span>;
+  return (
+    <span
+      className={classNames(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+        toneClass,
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
-function SectionTitle({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
+function SectionTitle({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
   return (
     <div className="mb-5">
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{eyebrow}</div>
-      <h2 className="text-xl font-semibold tracking-[-0.02em] text-zinc-900">{title}</h2>
-      <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">{description}</p>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+        {eyebrow}
+      </div>
+      <h2 className="text-xl font-semibold tracking-[-0.02em] text-zinc-900">
+        {title}
+      </h2>
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">
+        {description}
+      </p>
     </div>
   );
 }
 
-function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
+function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
   return (
     <div className="flex min-h-52 flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-white px-6 text-center">
       <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 text-zinc-500">
         <LayersIcon className="h-5 w-5" />
       </div>
       <p className="font-medium text-zinc-800">{title}</p>
-      <p className="mt-1 max-w-md text-sm leading-6 text-zinc-500">{description}</p>
+      <p className="mt-1 max-w-md text-sm leading-6 text-zinc-500">
+        {description}
+      </p>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
 }
 
 function ScoreRing({ score }: { score: number }) {
-  const tone = score >= 78 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-rose-600";
+  const tone =
+    score >= 78
+      ? "text-emerald-600"
+      : score >= 60
+        ? "text-amber-600"
+        : "text-rose-600";
   return (
     <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100">
       <div className="absolute inset-1 rounded-full bg-white" />
-      <span className={classNames("relative text-xl font-semibold", tone)}>{score}</span>
+      <span className={classNames("relative text-xl font-semibold", tone)}>
+        {score}
+      </span>
     </div>
   );
 }
@@ -316,14 +425,23 @@ function SignalCard({
   onDelete: () => void;
 }) {
   return (
-    <article className={classNames("group rounded-2xl border bg-white p-4 transition", selected ? "border-zinc-900 shadow-sm" : "border-zinc-200 hover:border-zinc-300")}> 
+    <article
+      className={classNames(
+        "group rounded-2xl border bg-white p-4 transition",
+        selected
+          ? "border-zinc-900 shadow-sm"
+          : "border-zinc-200 hover:border-zinc-300",
+      )}
+    >
       <div className="flex gap-3">
         <button
           type="button"
           onClick={onToggle}
           className={classNames(
             "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition",
-            selected ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-transparent",
+            selected
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 bg-white text-transparent",
           )}
           aria-label="신호 선택"
         >
@@ -331,24 +449,56 @@ function SignalCard({
         </button>
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Badge tone={signal.kind === "official" ? "good" : signal.kind === "naver-news" ? "warn" : signal.kind === "search-console" ? "blue" : "neutral"}>{SIGNAL_LABELS[signal.kind]}</Badge>
-            {signal.metrics?.impressions !== undefined ? <Badge>{signal.metrics.impressions.toLocaleString()} 노출</Badge> : null}
-            {signal.metrics?.trendScore !== undefined ? <Badge>{signal.metrics.trendScore} 트렌드</Badge> : null}
+            <Badge
+              tone={
+                signal.kind === "official"
+                  ? "good"
+                  : signal.kind === "naver-news"
+                    ? "warn"
+                    : signal.kind === "search-console"
+                      ? "blue"
+                      : "neutral"
+              }
+            >
+              {SIGNAL_LABELS[signal.kind]}
+            </Badge>
+            {signal.metrics?.impressions !== undefined ? (
+              <Badge>{signal.metrics.impressions.toLocaleString()} 노출</Badge>
+            ) : null}
+            {signal.metrics?.trendScore !== undefined ? (
+              <Badge>{signal.metrics.trendScore} 트렌드</Badge>
+            ) : null}
           </div>
-          <h3 className="text-sm font-semibold leading-6 text-zinc-900">{signal.title}</h3>
-          {signal.snippet ? <p className="mt-1 line-clamp-3 text-xs leading-5 text-zinc-500">{signal.snippet}</p> : null}
+          <h3 className="text-sm font-semibold leading-6 text-zinc-900">
+            {signal.title}
+          </h3>
+          {signal.snippet ? (
+            <p className="mt-1 line-clamp-3 text-xs leading-5 text-zinc-500">
+              {signal.snippet}
+            </p>
+          ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-zinc-400">
             <span>{signalRole(signal.kind)}</span>
             <span>·</span>
             <span>{formatDate(signal.createdAt)}</span>
             {signal.url ? (
-              <a href={signal.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-zinc-500 hover:text-zinc-900">
+              <a
+                href={signal.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-zinc-500 hover:text-zinc-900"
+              >
                 원문 <ExternalIcon className="h-3 w-3" />
               </a>
             ) : null}
           </div>
         </div>
-        <button type="button" onClick={onDelete} className="h-8 w-8 rounded-lg text-zinc-300 opacity-0 transition hover:bg-zinc-100 hover:text-rose-500 group-hover:opacity-100" aria-label="삭제">
+        <button
+          type="button"
+          onClick={onDelete}
+          className="h-8 w-8 rounded-lg text-zinc-300 opacity-0 transition hover:bg-zinc-100 hover:text-rose-500 group-hover:opacity-100"
+          aria-label="삭제"
+        >
           <TrashIcon className="mx-auto h-4 w-4" />
         </button>
       </div>
@@ -356,40 +506,86 @@ function SignalCard({
   );
 }
 
-function CandidateCard({ candidate, active, onOpen, onDelete }: { candidate: Candidate; active: boolean; onOpen: () => void; onDelete: () => void }) {
+function CandidateCard({
+  candidate,
+  active,
+  onOpen,
+  onDelete,
+}: {
+  candidate: Candidate;
+  active: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
   const score = scoreCandidate(candidate);
   const result = verdict(score);
   const aiReview = candidate.aiReview;
   return (
-    <article className={classNames("group rounded-2xl border bg-white p-4 transition", active ? "border-zinc-900 shadow-sm" : "border-zinc-200 hover:border-zinc-300")}> 
+    <article
+      className={classNames(
+        "group rounded-2xl border bg-white p-4 transition",
+        active
+          ? "border-zinc-900 shadow-sm"
+          : "border-zinc-200 hover:border-zinc-300",
+      )}
+    >
       <button type="button" onClick={onOpen} className="w-full text-left">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="mb-2 flex flex-wrap gap-2">
-              {aiReview ? <Badge tone="good">ChatGPT Pro 선정</Badge> : <Badge tone={result.tone}>{result.label}</Badge>}
-              <Badge>{candidate.experimentPlan?.recommended ? `직접 테스트 · ${candidate.experimentPlan.durationDays}일` : CONTENT_MODE_LABELS[candidate.contentMode]}</Badge>
+              {aiReview ? (
+                <Badge tone="good">ChatGPT Pro 선정</Badge>
+              ) : (
+                <Badge tone={result.tone}>{result.label}</Badge>
+              )}
+              <Badge>
+                {candidate.experimentPlan?.recommended
+                  ? `직접 테스트 · ${candidate.experimentPlan.durationDays}일`
+                  : CONTENT_MODE_LABELS[candidate.contentMode]}
+              </Badge>
             </div>
-            <h3 className="font-semibold leading-6 text-zinc-900">{candidate.title || "제목 없는 후보"}</h3>
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">{candidate.problem || "해결하려는 문제를 입력하세요."}</p>
+            <h3 className="font-semibold leading-6 text-zinc-900">
+              {candidate.title || "제목 없는 후보"}
+            </h3>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">
+              {candidate.problem || "해결하려는 문제를 입력하세요."}
+            </p>
           </div>
           <div className="shrink-0 text-right">
             {aiReview ? (
               <>
-                <div className="text-sm font-semibold text-zinc-900">{reviewLevelLabel(aiReview.trafficPotential)}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-wider text-zinc-400">유입 기대</div>
+                <div className="text-sm font-semibold text-zinc-900">
+                  {reviewLevelLabel(aiReview.trafficPotential)}
+                </div>
+                <div className="mt-1 text-[10px] uppercase tracking-wider text-zinc-400">
+                  유입 기대
+                </div>
               </>
             ) : (
               <>
-                <div className="text-2xl font-semibold tracking-[-0.04em] text-zinc-900">{score}</div>
-                <div className="text-[10px] uppercase tracking-wider text-zinc-400">score</div>
+                <div className="text-2xl font-semibold tracking-[-0.04em] text-zinc-900">
+                  {score}
+                </div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-400">
+                  score
+                </div>
               </>
             )}
           </div>
         </div>
       </button>
       <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3 text-[11px] text-zinc-400">
-        <span>신호 {candidate.sourceSignalIds.length}개 · {formatDate(candidate.updatedAt)}</span>
-        <button type="button" onClick={onDelete} className="opacity-0 transition hover:text-rose-500 group-hover:opacity-100">삭제</button>
+        <span>
+          신호 {candidate.sourceSignalIds.length}개 ·{" "}
+          {formatDate(candidate.updatedAt)}
+        </span>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="opacity-0 transition hover:text-rose-500 group-hover:opacity-100"
+        >
+          삭제
+        </button>
       </div>
     </article>
   );
@@ -401,7 +597,9 @@ export function ResearchWorkbench() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedSignalIds, setSelectedSignalIds] = useState<string[]>([]);
-  const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
+  const [activeCandidateId, setActiveCandidateId] = useState<string | null>(
+    null,
+  );
   const [hydrated, setHydrated] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -414,29 +612,46 @@ export function ResearchWorkbench() {
 
   const [naverTrendKeywords, setNaverTrendKeywords] = useState("");
   const [naverTrendRange, setNaverTrendRange] = useState<"90d" | "1y">("90d");
-  const [naverTrendResults, setNaverTrendResults] = useState<NaverTrendResult[]>([]);
+  const [naverTrendResults, setNaverTrendResults] = useState<
+    NaverTrendResult[]
+  >([]);
   const [naverTrendLoading, setNaverTrendLoading] = useState(false);
   const [naverTrendError, setNaverTrendError] = useState<string | null>(null);
 
   const [autoResearchLoading, setAutoResearchLoading] = useState(false);
-  const [autoResearchError, setAutoResearchError] = useState<string | null>(null);
+  const [autoResearchError, setAutoResearchError] = useState<string | null>(
+    null,
+  );
   const [, setAutoResearchOffset] = useState(0);
-  const [autoResearchSeeds, setAutoResearchSeeds] = useState<AutoResearchSeedSummary[]>([]);
-  const [autoResearchWarnings, setAutoResearchWarnings] = useState<string[]>([]);
-  const [autoResearchCooldown, setAutoResearchCooldown] = useState<AutoResearchResponse["cooldown"] | null>(null);
-  const [autoEvidenceBundles, setAutoEvidenceBundles] = useState<ResearchEvidenceBundle[]>([]);
+  const [autoResearchSeeds, setAutoResearchSeeds] = useState<
+    AutoResearchSeedSummary[]
+  >([]);
+  const [autoResearchWarnings, setAutoResearchWarnings] = useState<string[]>(
+    [],
+  );
+  const [autoResearchCooldown, setAutoResearchCooldown] = useState<
+    AutoResearchResponse["cooldown"] | null
+  >(null);
+  const [autoEvidenceBundles, setAutoEvidenceBundles] = useState<
+    ResearchEvidenceBundle[]
+  >([]);
   const [autoReviewPrompt, setAutoReviewPrompt] = useState("");
   const [autoReviewOutput, setAutoReviewOutput] = useState("");
   const [autoReviewPromptCopied, setAutoReviewPromptCopied] = useState(false);
   const [kinSourceUrl, setKinSourceUrl] = useState("");
   const [kinUrlResearchLoading, setKinUrlResearchLoading] = useState(false);
-  const [kinUrlResearchError, setKinUrlResearchError] = useState<string | null>(null);
+  const [kinUrlResearchError, setKinUrlResearchError] = useState<string | null>(
+    null,
+  );
   const [notionPromptPageUrl, setNotionPromptPageUrl] = useState("");
   const [notionPromptSaveNotice, setNotionPromptSaveNotice] = useState("");
-  const [autoSourceQuestion, setAutoSourceQuestion] = useState<AutoResearchResponse["sourceQuestion"] | null>(null);
+  const [autoSourceQuestion, setAutoSourceQuestion] = useState<
+    AutoResearchResponse["sourceQuestion"] | null
+  >(null);
   const [usedTopics, setUsedTopics] = useState<UsedTopicHistory[]>([]);
   const [sessionNow] = useState(() => Date.now());
-  const [autoEditorialContext, setAutoEditorialContext] = useState<EditorialContext | null>(null);
+  const [autoEditorialContext, setAutoEditorialContext] =
+    useState<EditorialContext | null>(null);
   const [siteUrl, setSiteUrl] = useState("");
   const [siteContents, setSiteContents] = useState<SiteContentRecord[]>([]);
   const [siteContentSyncedAt, setSiteContentSyncedAt] = useState("");
@@ -456,23 +671,47 @@ export function ResearchWorkbench() {
     const timer = window.setTimeout(() => {
       try {
         const storedSignals = window.localStorage.getItem(STORAGE_SIGNALS);
-        const storedCandidates = window.localStorage.getItem(STORAGE_CANDIDATES);
-        const storedUsedTopics = window.localStorage.getItem(STORAGE_USED_TOPICS);
+        const storedCandidates =
+          window.localStorage.getItem(STORAGE_CANDIDATES);
+        const storedUsedTopics =
+          window.localStorage.getItem(STORAGE_USED_TOPICS);
         const storedSiteUrl = window.localStorage.getItem(STORAGE_SITE_URL);
-        const storedSiteContents = window.localStorage.getItem(STORAGE_SITE_CONTENTS);
-        const storedSiteSyncedAt = window.localStorage.getItem(STORAGE_SITE_SYNCED_AT);
-        const storedAutoReviewPrompt = window.localStorage.getItem(STORAGE_AUTO_REVIEW_PROMPT);
-        const storedAutoEvidenceBundles = window.localStorage.getItem(STORAGE_AUTO_EVIDENCE_BUNDLES);
-        const storedAutoEditorialContext = window.localStorage.getItem(STORAGE_AUTO_EDITORIAL_CONTEXT);
-        const storedAutoSourceQuestion = window.localStorage.getItem(STORAGE_AUTO_SOURCE_QUESTION);
-        const storedAutoResearchSeeds = window.localStorage.getItem(STORAGE_AUTO_RESEARCH_SEEDS);
-        const storedAutoResearchCooldown = window.localStorage.getItem(STORAGE_AUTO_RESEARCH_COOLDOWN);
-        const storedAutoResearchWarnings = window.localStorage.getItem(STORAGE_AUTO_RESEARCH_WARNINGS);
-        const storedKinSourceUrl = window.localStorage.getItem(STORAGE_KIN_SOURCE_URL);
+        const storedSiteContents = window.localStorage.getItem(
+          STORAGE_SITE_CONTENTS,
+        );
+        const storedSiteSyncedAt = window.localStorage.getItem(
+          STORAGE_SITE_SYNCED_AT,
+        );
+        const storedAutoReviewPrompt = window.localStorage.getItem(
+          STORAGE_AUTO_REVIEW_PROMPT,
+        );
+        const storedAutoEvidenceBundles = window.localStorage.getItem(
+          STORAGE_AUTO_EVIDENCE_BUNDLES,
+        );
+        const storedAutoEditorialContext = window.localStorage.getItem(
+          STORAGE_AUTO_EDITORIAL_CONTEXT,
+        );
+        const storedAutoSourceQuestion = window.localStorage.getItem(
+          STORAGE_AUTO_SOURCE_QUESTION,
+        );
+        const storedAutoResearchSeeds = window.localStorage.getItem(
+          STORAGE_AUTO_RESEARCH_SEEDS,
+        );
+        const storedAutoResearchCooldown = window.localStorage.getItem(
+          STORAGE_AUTO_RESEARCH_COOLDOWN,
+        );
+        const storedAutoResearchWarnings = window.localStorage.getItem(
+          STORAGE_AUTO_RESEARCH_WARNINGS,
+        );
+        const storedKinSourceUrl = window.localStorage.getItem(
+          STORAGE_KIN_SOURCE_URL,
+        );
         if (storedSignals) setSignals(JSON.parse(storedSignals));
         if (storedCandidates) {
           const parsed = JSON.parse(storedCandidates) as Candidate[];
-          setCandidates(Array.isArray(parsed) ? parsed.filter(isUsableCandidate) : []);
+          setCandidates(
+            Array.isArray(parsed) ? parsed.filter(isUsableCandidate) : [],
+          );
         }
         if (storedUsedTopics) setUsedTopics(JSON.parse(storedUsedTopics));
         if (storedSiteUrl) setSiteUrl(storedSiteUrl);
@@ -483,19 +722,34 @@ export function ResearchWorkbench() {
         if (storedSiteSyncedAt) setSiteContentSyncedAt(storedSiteSyncedAt);
         if (storedAutoReviewPrompt) setAutoReviewPrompt(storedAutoReviewPrompt);
         if (storedAutoEvidenceBundles) {
-          const parsed = JSON.parse(storedAutoEvidenceBundles) as ResearchEvidenceBundle[];
+          const parsed = JSON.parse(
+            storedAutoEvidenceBundles,
+          ) as ResearchEvidenceBundle[];
           if (Array.isArray(parsed)) setAutoEvidenceBundles(parsed);
         }
-        if (storedAutoEditorialContext) setAutoEditorialContext(JSON.parse(storedAutoEditorialContext) as EditorialContext);
+        if (storedAutoEditorialContext)
+          setAutoEditorialContext(
+            JSON.parse(storedAutoEditorialContext) as EditorialContext,
+          );
         if (storedAutoSourceQuestion) {
-          setAutoSourceQuestion(JSON.parse(storedAutoSourceQuestion) as AutoResearchResponse["sourceQuestion"]);
+          setAutoSourceQuestion(
+            JSON.parse(
+              storedAutoSourceQuestion,
+            ) as AutoResearchResponse["sourceQuestion"],
+          );
         }
         if (storedAutoResearchSeeds) {
-          const parsed = JSON.parse(storedAutoResearchSeeds) as AutoResearchSeedSummary[];
+          const parsed = JSON.parse(
+            storedAutoResearchSeeds,
+          ) as AutoResearchSeedSummary[];
           if (Array.isArray(parsed)) setAutoResearchSeeds(parsed);
         }
         if (storedAutoResearchCooldown) {
-          setAutoResearchCooldown(JSON.parse(storedAutoResearchCooldown) as AutoResearchResponse["cooldown"]);
+          setAutoResearchCooldown(
+            JSON.parse(
+              storedAutoResearchCooldown,
+            ) as AutoResearchResponse["cooldown"],
+          );
         }
         if (storedAutoResearchWarnings) {
           const parsed = JSON.parse(storedAutoResearchWarnings) as string[];
@@ -537,30 +791,57 @@ export function ResearchWorkbench() {
   useEffect(() => {
     if (!hydrated) return;
     window.localStorage.setItem(STORAGE_SITE_URL, siteUrl);
-    window.localStorage.setItem(STORAGE_SITE_CONTENTS, JSON.stringify(siteContents));
-    if (siteContentSyncedAt) window.localStorage.setItem(STORAGE_SITE_SYNCED_AT, siteContentSyncedAt);
+    window.localStorage.setItem(
+      STORAGE_SITE_CONTENTS,
+      JSON.stringify(siteContents),
+    );
+    if (siteContentSyncedAt)
+      window.localStorage.setItem(STORAGE_SITE_SYNCED_AT, siteContentSyncedAt);
   }, [siteUrl, siteContents, siteContentSyncedAt, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
 
-    if (autoReviewPrompt) window.localStorage.setItem(STORAGE_AUTO_REVIEW_PROMPT, autoReviewPrompt);
+    if (autoReviewPrompt)
+      window.localStorage.setItem(STORAGE_AUTO_REVIEW_PROMPT, autoReviewPrompt);
     else window.localStorage.removeItem(STORAGE_AUTO_REVIEW_PROMPT);
 
-    window.localStorage.setItem(STORAGE_AUTO_EVIDENCE_BUNDLES, JSON.stringify(autoEvidenceBundles));
+    window.localStorage.setItem(
+      STORAGE_AUTO_EVIDENCE_BUNDLES,
+      JSON.stringify(autoEvidenceBundles),
+    );
 
-    if (autoEditorialContext) window.localStorage.setItem(STORAGE_AUTO_EDITORIAL_CONTEXT, JSON.stringify(autoEditorialContext));
+    if (autoEditorialContext)
+      window.localStorage.setItem(
+        STORAGE_AUTO_EDITORIAL_CONTEXT,
+        JSON.stringify(autoEditorialContext),
+      );
     else window.localStorage.removeItem(STORAGE_AUTO_EDITORIAL_CONTEXT);
 
-    if (autoSourceQuestion) window.localStorage.setItem(STORAGE_AUTO_SOURCE_QUESTION, JSON.stringify(autoSourceQuestion));
+    if (autoSourceQuestion)
+      window.localStorage.setItem(
+        STORAGE_AUTO_SOURCE_QUESTION,
+        JSON.stringify(autoSourceQuestion),
+      );
     else window.localStorage.removeItem(STORAGE_AUTO_SOURCE_QUESTION);
 
-    window.localStorage.setItem(STORAGE_AUTO_RESEARCH_SEEDS, JSON.stringify(autoResearchSeeds));
-    if (autoResearchCooldown) window.localStorage.setItem(STORAGE_AUTO_RESEARCH_COOLDOWN, JSON.stringify(autoResearchCooldown));
+    window.localStorage.setItem(
+      STORAGE_AUTO_RESEARCH_SEEDS,
+      JSON.stringify(autoResearchSeeds),
+    );
+    if (autoResearchCooldown)
+      window.localStorage.setItem(
+        STORAGE_AUTO_RESEARCH_COOLDOWN,
+        JSON.stringify(autoResearchCooldown),
+      );
     else window.localStorage.removeItem(STORAGE_AUTO_RESEARCH_COOLDOWN);
-    window.localStorage.setItem(STORAGE_AUTO_RESEARCH_WARNINGS, JSON.stringify(autoResearchWarnings));
+    window.localStorage.setItem(
+      STORAGE_AUTO_RESEARCH_WARNINGS,
+      JSON.stringify(autoResearchWarnings),
+    );
 
-    if (kinSourceUrl) window.localStorage.setItem(STORAGE_KIN_SOURCE_URL, kinSourceUrl);
+    if (kinSourceUrl)
+      window.localStorage.setItem(STORAGE_KIN_SOURCE_URL, kinSourceUrl);
     else window.localStorage.removeItem(STORAGE_KIN_SOURCE_URL);
   }, [
     autoReviewPrompt,
@@ -574,7 +855,6 @@ export function ResearchWorkbench() {
     hydrated,
   ]);
 
-
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 2200);
@@ -583,7 +863,10 @@ export function ResearchWorkbench() {
 
   useEffect(() => {
     if (!autoReviewPromptCopied) return;
-    const timer = window.setTimeout(() => setAutoReviewPromptCopied(false), 2600);
+    const timer = window.setTimeout(
+      () => setAutoReviewPromptCopied(false),
+      2600,
+    );
     return () => window.clearTimeout(timer);
   }, [autoReviewPromptCopied]);
 
@@ -592,7 +875,9 @@ export function ResearchWorkbench() {
       [...candidates].sort((a, b) => {
         const scoreDiff = scoreCandidate(b) - scoreCandidate(a);
         if (scoreDiff !== 0) return scoreDiff;
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        return (
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
       }),
     [candidates],
   );
@@ -610,12 +895,17 @@ export function ResearchWorkbench() {
       if (!candidate.aiReview && scoreCandidate(candidate) < 60) return false;
       const titleKey = candidate.title.trim().toLowerCase();
       const problemKey = (candidate.problem || "").trim().toLowerCase();
-      return !usedKeys.has(titleKey) && (!problemKey || !usedKeys.has(problemKey));
+      return (
+        !usedKeys.has(titleKey) && (!problemKey || !usedKeys.has(problemKey))
+      );
     });
   }, [sortedCandidates, usedTopics]);
 
   const activeCandidate = useMemo(
-    () => visibleCandidates.find((candidate) => candidate.id === activeCandidateId) || null,
+    () =>
+      visibleCandidates.find(
+        (candidate) => candidate.id === activeCandidateId,
+      ) || null,
     [visibleCandidates, activeCandidateId],
   );
 
@@ -623,7 +913,11 @@ export function ResearchWorkbench() {
     () =>
       [...siteContents]
         .filter((item) => item.revalidationDue)
-        .sort((a, b) => new Date(a.modifiedAt || a.publishedAt || 0).getTime() - new Date(b.modifiedAt || b.publishedAt || 0).getTime())
+        .sort(
+          (a, b) =>
+            new Date(a.modifiedAt || a.publishedAt || 0).getTime() -
+            new Date(b.modifiedAt || b.publishedAt || 0).getTime(),
+        )
         .slice(0, 6),
     [siteContents],
   );
@@ -632,12 +926,13 @@ export function ResearchWorkbench() {
     const sample = createSampleData();
     setSignals(sample.signals);
     setCandidates(sample.candidates);
-    const topSample = [...sample.candidates].sort((a, b) => scoreCandidate(b) - scoreCandidate(a))[0];
+    const topSample = [...sample.candidates].sort(
+      (a, b) => scoreCandidate(b) - scoreCandidate(a),
+    )[0];
     setActiveCandidateId(topSample?.id || null);
     setSelectedSignalIds([]);
     setToast("샘플 리서치를 불러왔습니다.");
   }
-
 
   function hasWorkspaceWork() {
     return Boolean(
@@ -701,7 +996,10 @@ export function ResearchWorkbench() {
 
   function addSignal(signal: Signal) {
     const duplicate = signals.some(
-      (item) => item.kind === signal.kind && item.title === signal.title && item.url === signal.url,
+      (item) =>
+        item.kind === signal.kind &&
+        item.title === signal.title &&
+        item.url === signal.url,
     );
     if (duplicate) {
       setToast("이미 저장된 신호입니다.");
@@ -726,7 +1024,12 @@ export function ResearchWorkbench() {
       createdAt: new Date().toISOString(),
       metrics:
         manualKind === "google-trends"
-          ? { trendScore: Math.max(0, Math.min(100, Number(manualTrendScore) || 0)) }
+          ? {
+              trendScore: Math.max(
+                0,
+                Math.min(100, Number(manualTrendScore) || 0),
+              ),
+            }
           : undefined,
     });
     setManualTitle("");
@@ -750,7 +1053,10 @@ export function ResearchWorkbench() {
     }
   }
 
-  function candidateFromTopicReview(review: TopicReviewItem, bundle: ResearchEvidenceBundle): Candidate {
+  function candidateFromTopicReview(
+    review: TopicReviewItem,
+    bundle: ResearchEvidenceBundle,
+  ): Candidate {
     const createdAt = new Date().toISOString();
     return {
       id: makeId("candidate"),
@@ -759,7 +1065,10 @@ export function ResearchWorkbench() {
       audience: review.audience.trim(),
       siteTheme: "생활 문제 해결 기록소 · 디지털 생활 도구",
       contentMode: review.contentMode,
-      validationStrategy: review.decision === "direct-test" ? "direct-test" : "research-verification",
+      validationStrategy:
+        review.decision === "direct-test"
+          ? "direct-test"
+          : "research-verification",
       experimentPlan:
         review.decision === "direct-test" && review.experimentPlan
           ? { ...review.experimentPlan, recommended: true }
@@ -776,9 +1085,14 @@ export function ResearchWorkbench() {
       uniqueOutput: review.uniqueOutput.trim(),
       verificationPlan: review.verificationPlan.trim(),
       directEvidence: "",
-      editorialContext: autoEditorialContext?.bundles.find((item) => item.bundleId === bundle.id),
+      editorialContext: autoEditorialContext?.bundles.find(
+        (item) => item.bundleId === bundle.id,
+      ),
       aiReview: {
-        decision: review.decision === "direct-test" ? "direct-test" : "research-verification",
+        decision:
+          review.decision === "direct-test"
+            ? "direct-test"
+            : "research-verification",
         reviewedAt: createdAt,
         category: review.category,
         searchIntent: review.searchIntent.trim(),
@@ -805,16 +1119,29 @@ export function ResearchWorkbench() {
       const response = await fetch("/api/site-content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteUrl: siteUrl.trim(), maxPosts: 10_000, allPosts: true }),
+        body: JSON.stringify({
+          siteUrl: siteUrl.trim(),
+          maxPosts: 10_000,
+          allPosts: true,
+        }),
       });
       const data = (await response.json()) as SiteContentSyncResponse;
-      if (!response.ok) throw new Error(data.error || "WordPress 글 목록을 가져오지 못했습니다.");
+      if (!response.ok)
+        throw new Error(
+          data.error || "WordPress 글 목록을 가져오지 못했습니다.",
+        );
       setSiteUrl(data.siteUrl);
       setSiteContents(Array.isArray(data.contents) ? data.contents : []);
       setSiteContentSyncedAt(data.syncedAt || new Date().toISOString());
-      setToast(`WordPress 게시글 ${data.total}개를 사이트 중복 검사 기준으로 동기화했습니다.`);
+      setToast(
+        `WordPress 게시글 ${data.total}개를 사이트 중복 검사 기준으로 동기화했습니다.`,
+      );
     } catch (error) {
-      setSiteContentError(error instanceof Error ? error.message : "WordPress 글 목록을 가져오지 못했습니다.");
+      setSiteContentError(
+        error instanceof Error
+          ? error.message
+          : "WordPress 글 목록을 가져오지 못했습니다.",
+      );
     } finally {
       setSiteContentLoading(false);
     }
@@ -843,7 +1170,11 @@ export function ResearchWorkbench() {
         siteUrl: siteUrl.trim() || undefined,
         siteContents: siteContents.slice(0, 500),
         searchPerformance: signals
-          .filter((signal) => signal.kind === "search-console" && (signal.query || signal.title))
+          .filter(
+            (signal) =>
+              signal.kind === "search-console" &&
+              (signal.query || signal.title),
+          )
           .slice(0, 500)
           .map((signal) => ({
             query: signal.query || signal.title,
@@ -854,14 +1185,18 @@ export function ResearchWorkbench() {
           })),
       }),
     });
-    const data = (await response.json()) as AutoResearchResponse & { error?: string };
+    const data = (await response.json()) as AutoResearchResponse & {
+      error?: string;
+    };
 
     if (!response.ok) {
       throw new Error(data.error || "조사 데이터 수집에 실패했습니다.");
     }
 
     const incomingSignals = Array.isArray(data.signals) ? data.signals : [];
-    const incomingBundles = Array.isArray(data.evidenceBundles) ? data.evidenceBundles : [];
+    const incomingBundles = Array.isArray(data.evidenceBundles)
+      ? data.evidenceBundles
+      : [];
     const signalIdMap = new Map<string, string>();
     const existingByKey = new Map(
       signals.map((signal) => [
@@ -885,7 +1220,9 @@ export function ResearchWorkbench() {
 
     const normalizedBundles = incomingBundles.map((bundle) => ({
       ...bundle,
-      sourceSignalIds: bundle.sourceSignalIds.map((id) => signalIdMap.get(id) || id),
+      sourceSignalIds: bundle.sourceSignalIds.map(
+        (id) => signalIdMap.get(id) || id,
+      ),
     }));
 
     setSignals((current) => [...freshSignals, ...current]);
@@ -894,13 +1231,17 @@ export function ResearchWorkbench() {
     setAutoResearchWarnings(Array.isArray(data.errors) ? data.errors : []);
     setAutoResearchCooldown(data.cooldown || null);
     setAutoEvidenceBundles(normalizedBundles);
-    setAutoReviewPrompt(typeof data.reviewPrompt === "string" ? data.reviewPrompt : "");
+    setAutoReviewPrompt(
+      typeof data.reviewPrompt === "string" ? data.reviewPrompt : "",
+    );
     setAutoEditorialContext(data.editorialContext || null);
     setAutoSourceQuestion(data.sourceQuestion || null);
 
     if (normalizedBundles.length && data.reviewPrompt) {
       window.setTimeout(() => {
-        document.getElementById("topic-review-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document
+          .getElementById("topic-review-panel")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 0);
     }
 
@@ -914,10 +1255,16 @@ export function ResearchWorkbench() {
     try {
       const { normalizedBundles } = await executeResearch(offset);
       if (!normalizedBundles.length) {
-        setToast("조사는 완료됐지만 이번 검색에서 중복·제외 기준을 통과한 독립 질문을 찾지 못했습니다. 이전에 보기만 한 후보는 더 이상 차단하지 않으므로 다시 조회해도 됩니다.");
+        setToast(
+          "조사는 완료됐지만 이번 검색에서 중복·제외 기준을 통과한 독립 질문을 찾지 못했습니다. 이전에 보기만 한 후보는 더 이상 차단하지 않으므로 다시 조회해도 됩니다.",
+        );
       }
     } catch (error) {
-      setAutoResearchError(error instanceof Error ? error.message : "조사 데이터 수집에 실패했습니다.");
+      setAutoResearchError(
+        error instanceof Error
+          ? error.message
+          : "조사 데이터 수집에 실패했습니다.",
+      );
     } finally {
       setAutoResearchLoading(false);
     }
@@ -931,8 +1278,13 @@ export function ResearchWorkbench() {
     }
     try {
       const parsed = new URL(sourceUrl);
-      if (parsed.hostname !== "kin.naver.com" && parsed.hostname !== "m.kin.naver.com") {
-        setKinUrlResearchError("kin.naver.com 지식iN 질문 URL만 입력할 수 있습니다.");
+      if (
+        parsed.hostname !== "kin.naver.com" &&
+        parsed.hostname !== "m.kin.naver.com"
+      ) {
+        setKinUrlResearchError(
+          "kin.naver.com 지식iN 질문 URL만 입력할 수 있습니다.",
+        );
         return;
       }
     } catch {
@@ -948,10 +1300,14 @@ export function ResearchWorkbench() {
 
     try {
       const { normalizedBundles, data } = await executeResearch(0, sourceUrl);
-      if (!normalizedBundles.length || !data.reviewPrompt || !data.sourceQuestion) {
+      if (
+        !normalizedBundles.length ||
+        !data.reviewPrompt ||
+        !data.sourceQuestion
+      ) {
         setKinUrlResearchError(
-          (Array.isArray(data.errors) && data.errors[0])
-            || "원문은 확인했지만 작성 프롬프트를 만들지 못했습니다.",
+          (Array.isArray(data.errors) && data.errors[0]) ||
+            "원문은 확인했지만 작성 프롬프트를 만들지 못했습니다.",
         );
         return;
       }
@@ -978,10 +1334,12 @@ export function ResearchWorkbench() {
 
         if (!notionResponse.ok) {
           setKinUrlResearchError(
-            notionData.error
-              || "프롬프트는 생성됐지만 Notion 저장에 실패했습니다.",
+            notionData.error ||
+              "프롬프트는 생성됐지만 Notion 저장에 실패했습니다.",
           );
-          setToast("프롬프트는 앱에 보존됐지만 Notion 저장은 완료되지 않았습니다.");
+          setToast(
+            "프롬프트는 앱에 보존됐지만 Notion 저장은 완료되지 않았습니다.",
+          );
           return;
         }
 
@@ -1014,7 +1372,11 @@ export function ResearchWorkbench() {
     if (!autoReviewPrompt) return;
     await writeClipboard(autoReviewPrompt);
     setAutoReviewPromptCopied(true);
-    setToast(autoSourceQuestion ? "최종 작성 프롬프트를 복사했습니다. ChatGPT Pro에 붙여넣으세요." : "심사 프롬프트를 복사했습니다. ChatGPT Pro에 붙여넣으세요.");
+    setToast(
+      autoSourceQuestion
+        ? "최종 작성 프롬프트를 복사했습니다. ChatGPT Pro에 붙여넣으세요."
+        : "심사 프롬프트를 복사했습니다. ChatGPT Pro에 붙여넣으세요.",
+    );
   }
 
   function reviewPromptForBundles(bundles: ResearchEvidenceBundle[]) {
@@ -1022,7 +1384,9 @@ export function ResearchWorkbench() {
     const editorialContext = autoEditorialContext
       ? {
           ...autoEditorialContext,
-          bundles: autoEditorialContext.bundles.filter((item) => bundleIds.has(item.bundleId)),
+          bundles: autoEditorialContext.bundles.filter((item) =>
+            bundleIds.has(item.bundleId),
+          ),
         }
       : undefined;
     return buildTopicReviewPrompt(bundles, {
@@ -1043,49 +1407,83 @@ export function ResearchWorkbench() {
     const prompt = reviewPromptForBundles([bundle]);
     await writeClipboard(prompt);
 
-    const remainingBundles = autoEvidenceBundles.filter((item) => item.id !== bundle.id);
+    const remainingBundles = autoEvidenceBundles.filter(
+      (item) => item.id !== bundle.id,
+    );
     setAutoEvidenceBundles(remainingBundles);
-    setAutoReviewPrompt(remainingBundles.length ? reviewPromptForBundles(remainingBundles) : "");
+    setAutoReviewPrompt(
+      remainingBundles.length ? reviewPromptForBundles(remainingBundles) : "",
+    );
     setAutoReviewPromptCopied(false);
-    setToast(`“${bundle.query}” 프롬프트를 복사했고 현재 결과 목록에서 숨겼습니다.`);
+    setToast(
+      `“${bundle.query}” 프롬프트를 복사했고 현재 결과 목록에서 숨겼습니다.`,
+    );
   }
 
   async function copyEvidenceJson() {
     if (!autoEvidenceBundles.length) return;
-    await writeClipboard(JSON.stringify({ evidenceBundles: autoEvidenceBundles }, null, 2));
+    await writeClipboard(
+      JSON.stringify({ evidenceBundles: autoEvidenceBundles }, null, 2),
+    );
     setToast("오늘의 Evidence Bundle JSON을 복사했습니다.");
   }
 
   function importTopicReview() {
     try {
       const result = parseTopicReviewOutput(autoReviewOutput);
-      const bundleById = new Map(autoEvidenceBundles.map((bundle) => [bundle.id, bundle]));
+      const bundleById = new Map(
+        autoEvidenceBundles.map((bundle) => [bundle.id, bundle]),
+      );
       const selectedReviews = result.reviews
-        .filter((review) => review.decision === "direct-test" || review.decision === "research-verification")
+        .filter(
+          (review) =>
+            review.decision === "direct-test" ||
+            review.decision === "research-verification",
+        )
         .slice(0, 3);
 
       const imported = selectedReviews.flatMap((review) => {
         const bundle = bundleById.get(review.bundleId);
         if (!bundle) return [];
-        if (isExcludedContentTopic(`${review.title} ${review.problem}`)) return [];
+        if (isExcludedContentTopic(`${review.title} ${review.problem}`))
+          return [];
         return [candidateFromTopicReview(review, bundle)];
       });
 
       if (!imported.length) {
-        setToast("ChatGPT Pro가 제작 대상으로 선정한 후보가 없습니다. 오늘은 억지로 발행하지 않는 편이 좋습니다.");
+        setToast(
+          "ChatGPT Pro가 제작 대상으로 선정한 후보가 없습니다. 오늘은 억지로 발행하지 않는 편이 좋습니다.",
+        );
         return;
       }
 
       setCandidates((current) => {
-        const incomingTitles = new Set(imported.map((candidate) => candidate.title.trim().toLowerCase()));
-        return [...imported, ...current.filter((candidate) => !incomingTitles.has(candidate.title.trim().toLowerCase()))];
+        const incomingTitles = new Set(
+          imported.map((candidate) => candidate.title.trim().toLowerCase()),
+        );
+        return [
+          ...imported,
+          ...current.filter(
+            (candidate) =>
+              !incomingTitles.has(candidate.title.trim().toLowerCase()),
+          ),
+        ];
       });
       setActiveCandidateId(imported[0]?.id || null);
       setTab("candidates");
-      setToast(`ChatGPT Pro가 선정한 후보 ${imported.length}개를 불러왔습니다. 직접 테스트형은 결과를 기록한 뒤 최종 글로 넘어갑니다.`);
-      window.setTimeout(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }), 0);
+      setToast(
+        `ChatGPT Pro가 선정한 후보 ${imported.length}개를 불러왔습니다. 직접 테스트형은 결과를 기록한 뒤 최종 글로 넘어갑니다.`,
+      );
+      window.setTimeout(
+        () => window.scrollTo({ top: 0, left: 0, behavior: "auto" }),
+        0,
+      );
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "ChatGPT Pro 심사 결과를 읽지 못했습니다.");
+      setToast(
+        error instanceof Error
+          ? error.message
+          : "ChatGPT Pro 심사 결과를 읽지 못했습니다.",
+      );
     }
   }
 
@@ -1109,14 +1507,17 @@ export function ResearchWorkbench() {
       setNaverItems(data.items || []);
     } catch (error) {
       setNaverItems([]);
-      setNaverError(error instanceof Error ? error.message : "검색에 실패했습니다.");
+      setNaverError(
+        error instanceof Error ? error.message : "검색에 실패했습니다.",
+      );
     } finally {
       setNaverLoading(false);
     }
   }
 
   function saveNaverItem(item: NaverItem) {
-    const typeInfo = NAVER_TYPES.find((entry) => entry.value === naverType) || NAVER_TYPES[0];
+    const typeInfo =
+      NAVER_TYPES.find((entry) => entry.value === naverType) || NAVER_TYPES[0];
     addSignal({
       id: makeId("signal"),
       kind: typeInfo.kind,
@@ -1135,7 +1536,9 @@ export function ResearchWorkbench() {
       .filter((value) => Number.isFinite(value));
     if (!ratios.length) return 0;
     const recent = ratios.slice(-Math.min(4, ratios.length));
-    return Math.round(recent.reduce((sum, value) => sum + value, 0) / recent.length);
+    return Math.round(
+      recent.reduce((sum, value) => sum + value, 0) / recent.length,
+    );
   }
 
   async function searchNaverTrend() {
@@ -1160,11 +1563,16 @@ export function ResearchWorkbench() {
         body: JSON.stringify({ keywords, range: naverTrendRange }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "검색어 트렌드 조회에 실패했습니다.");
+      if (!response.ok)
+        throw new Error(data.error || "검색어 트렌드 조회에 실패했습니다.");
       setNaverTrendResults(Array.isArray(data.results) ? data.results : []);
     } catch (error) {
       setNaverTrendResults([]);
-      setNaverTrendError(error instanceof Error ? error.message : "검색어 트렌드 조회에 실패했습니다.");
+      setNaverTrendError(
+        error instanceof Error
+          ? error.message
+          : "검색어 트렌드 조회에 실패했습니다.",
+      );
     } finally {
       setNaverTrendLoading(false);
     }
@@ -1192,7 +1600,10 @@ export function ResearchWorkbench() {
       return;
     }
     const headers = rows[0].map((value) => value.toLowerCase().trim());
-    const findHeader = (...names: string[]) => headers.findIndex((header) => names.some((name) => header === name || header.includes(name)));
+    const findHeader = (...names: string[]) =>
+      headers.findIndex((header) =>
+        names.some((name) => header === name || header.includes(name)),
+      );
     const queryIndex = findHeader("query", "검색어", "쿼리");
     const clicksIndex = findHeader("clicks", "클릭수", "클릭");
     const impressionsIndex = findHeader("impressions", "노출수", "노출");
@@ -1218,26 +1629,39 @@ export function ResearchWorkbench() {
         createdAt: new Date().toISOString(),
         metrics: {
           clicks: clicksIndex >= 0 ? parseNumber(row[clicksIndex]) : undefined,
-          impressions: impressionsIndex >= 0 ? parseNumber(row[impressionsIndex]) : undefined,
+          impressions:
+            impressionsIndex >= 0
+              ? parseNumber(row[impressionsIndex])
+              : undefined,
           ctr: ctrIndex >= 0 ? parseNumber(row[ctrIndex]) : undefined,
-          position: positionIndex >= 0 ? parseNumber(row[positionIndex]) : undefined,
+          position:
+            positionIndex >= 0 ? parseNumber(row[positionIndex]) : undefined,
         },
       }));
 
     // Search Console은 누적 로그가 아니라 현재 사이트 성과 스냅샷으로 사용합니다.
     // 새 CSV를 가져오면 이전 Search Console 신호는 교체하고 다른 조사 신호만 유지합니다.
-    setSignals((current) => [...imported, ...current.filter((signal) => signal.kind !== "search-console")]);
-    setToast(`Search Console 검색어 ${imported.length}개를 최신 성과 스냅샷으로 불러왔습니다.`);
+    setSignals((current) => [
+      ...imported,
+      ...current.filter((signal) => signal.kind !== "search-console"),
+    ]);
+    setToast(
+      `Search Console 검색어 ${imported.length}개를 최신 성과 스냅샷으로 불러왔습니다.`,
+    );
   }
 
   function toggleSignal(id: string) {
     setSelectedSignalIds((current) =>
-      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
     );
   }
 
   function createCandidateFromSelection() {
-    const selected = signals.filter((signal) => selectedSignalIds.includes(signal.id));
+    const selected = signals.filter((signal) =>
+      selectedSignalIds.includes(signal.id),
+    );
     if (!selected.length) {
       setToast("후보로 묶을 신호를 하나 이상 선택해주세요.");
       return;
@@ -1246,26 +1670,41 @@ export function ResearchWorkbench() {
     const candidate = defaultCandidate(seed);
     candidate.sourceSignalIds = selected.map((signal) => signal.id);
     candidate.title = seed.query || seed.title;
-    candidate.problem = selected
-      .filter((signal) => ["community", "naver-cafe", "naver-kin"].includes(signal.kind))
-      .map((signal) => signal.title)
-      .slice(0, 2)
-      .join(" / ") || seed.title;
+    candidate.problem =
+      selected
+        .filter((signal) =>
+          ["community", "naver-cafe", "naver-kin"].includes(signal.kind),
+        )
+        .map((signal) => signal.title)
+        .slice(0, 2)
+        .join(" / ") || seed.title;
 
     const trendScores = selected
-      .filter((signal) => ["naver-trends", "google-trends"].includes(signal.kind))
+      .filter((signal) =>
+        ["naver-trends", "google-trends"].includes(signal.kind),
+      )
       .map((signal) => signal.metrics?.trendScore)
       .filter((value): value is number => typeof value === "number");
     const maxTrendScore = trendScores.length ? Math.max(...trendScores) : null;
-    const hasSearchConsoleDemand = selected.some((signal) => (signal.metrics?.impressions || 0) > 0);
+    const hasSearchConsoleDemand = selected.some(
+      (signal) => (signal.metrics?.impressions || 0) > 0,
+    );
     if (maxTrendScore !== null) {
-      candidate.scoreInputs.demand = maxTrendScore >= 70 ? 5 : maxTrendScore >= 35 ? 4 : 3;
+      candidate.scoreInputs.demand =
+        maxTrendScore >= 70 ? 5 : maxTrendScore >= 35 ? 4 : 3;
     } else if (hasSearchConsoleDemand) {
       candidate.scoreInputs.demand = 4;
     }
 
-    candidate.penalties.newsRewrite = selected.length === 1 && selected[0].kind === "naver-news";
-    candidate.penalties.aiCommodity = !selected.some((signal) => signal.kind === "official") || !selected.some((signal) => ["community", "naver-cafe", "naver-kin", "search-console"].includes(signal.kind));
+    candidate.penalties.newsRewrite =
+      selected.length === 1 && selected[0].kind === "naver-news";
+    candidate.penalties.aiCommodity =
+      !selected.some((signal) => signal.kind === "official") ||
+      !selected.some((signal) =>
+        ["community", "naver-cafe", "naver-kin", "search-console"].includes(
+          signal.kind,
+        ),
+      );
     setCandidates((current) => [candidate, ...current]);
     setActiveCandidateId(candidate.id);
     setSelectedSignalIds([]);
@@ -1300,13 +1739,20 @@ export function ResearchWorkbench() {
   }
 
   function deleteCandidate(id: string) {
-    setCandidates((current) => current.filter((candidate) => candidate.id !== id));
+    setCandidates((current) =>
+      current.filter((candidate) => candidate.id !== id),
+    );
     if (activeCandidateId === id) setActiveCandidateId(null);
   }
 
   async function copyCandidatePrompt(candidate: Candidate) {
-    if (!isUsableCandidate(candidate) || (!candidate.aiReview && scoreCandidate(candidate) < 60)) {
-      setToast("ChatGPT Pro가 선정했거나 수동 검토를 통과한 실제 질문 기반 후보만 프롬프트로 만들 수 있습니다.");
+    if (
+      !isUsableCandidate(candidate) ||
+      (!candidate.aiReview && scoreCandidate(candidate) < 60)
+    ) {
+      setToast(
+        "ChatGPT Pro가 선정했거나 수동 검토를 통과한 실제 질문 기반 후보만 프롬프트로 만들 수 있습니다.",
+      );
       return;
     }
     const testRequired = needsDirectTest(candidate);
@@ -1329,7 +1775,9 @@ export function ResearchWorkbench() {
     if (testRequired) {
       setActiveCandidateId(candidate.id);
       setPromptCopied(true);
-      setToast(`“${candidate.title}” ${candidate.experimentPlan?.durationDays || 3}일 테스트 계획을 복사했습니다. 실제 결과를 ‘직접 확보한 증거’에 입력하기 전까지 후보는 유지됩니다.`);
+      setToast(
+        `“${candidate.title}” ${candidate.experimentPlan?.durationDays || 3}일 테스트 계획을 복사했습니다. 실제 결과를 ‘직접 확보한 증거’에 입력하기 전까지 후보는 유지됩니다.`,
+      );
       window.setTimeout(() => setPromptCopied(false), 1500);
       return;
     }
@@ -1344,11 +1792,16 @@ export function ResearchWorkbench() {
       return [...filtered, next].slice(-120);
     });
 
-    setCandidates((current) => current.filter((item) => item.id !== candidate.id));
-    const nextCandidate = visibleCandidates.find((item) => item.id !== candidate.id) || null;
+    setCandidates((current) =>
+      current.filter((item) => item.id !== candidate.id),
+    );
+    const nextCandidate =
+      visibleCandidates.find((item) => item.id !== candidate.id) || null;
     setActiveCandidateId(nextCandidate?.id || null);
     setPromptCopied(true);
-    setToast(`“${candidate.title || "제목 없는 후보"}” 프롬프트를 복사했고 후보 목록에서 숨겼습니다.`);
+    setToast(
+      `“${candidate.title || "제목 없는 후보"}” 프롬프트를 복사했고 후보 목록에서 숨겼습니다.`,
+    );
     window.setTimeout(() => setPromptCopied(false), 1500);
   }
 
@@ -1357,7 +1810,9 @@ export function ResearchWorkbench() {
     await copyCandidatePrompt(activeCandidate);
   }
 
-  const activePrompt = activeCandidate ? promptForCandidate(activeCandidate, signals) : "";
+  const activePrompt = activeCandidate
+    ? promptForCandidate(activeCandidate, signals)
+    : "";
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#f7f7f5] text-zinc-900">
@@ -1379,8 +1834,12 @@ export function ResearchWorkbench() {
               <SparkIcon className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold tracking-[-0.02em]">Content Topic Research</div>
-              <div className="hidden text-[11px] text-zinc-400 sm:block">생산 자동화보다 선별 자동화</div>
+              <div className="truncate text-sm font-semibold tracking-[-0.02em]">
+                Naver KIN Content Research
+              </div>
+              <div className="hidden text-[11px] text-zinc-400 sm:block">
+                생산 자동화보다 선별 자동화
+              </div>
             </div>
           </button>
         </div>
@@ -1393,27 +1852,69 @@ export function ResearchWorkbench() {
               <section className="w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-zinc-900 bg-zinc-950 p-5 text-white sm:p-6">
                 <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-end">
                   <div>
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">One-click Research</div>
-                    <h2 className="text-2xl font-semibold tracking-[-0.04em]">NAVER 데이터를 모으고 ChatGPT Pro에게 주제 심사를 맡기기</h2>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                      One-click Research
+                    </div>
+                    <h2 className="text-2xl font-semibold tracking-[-0.04em]">
+                      NAVER 데이터를 모으고 ChatGPT Pro에게 주제 심사를 맡기기
+                    </h2>
                     <p className="mt-2 max-w-3xl break-words text-sm leading-6 text-zinc-400 [overflow-wrap:anywhere]">
-                      앱은 지식iN에서 실제 질문을 넓게 찾고, 동일 URL·동일 질문은 제거한 뒤 유사 질문을 묶습니다. 그중 서로 다른 문제를 최대 10~15개 수준으로 추려 검색어트렌드·카페·블로그·뉴스·웹문서 데이터를 Evidence Bundle JSON으로 붙입니다. 검색어트렌드는 원 질문 한 문장만 보지 않고 관련 검색 의도군을 함께 조회합니다. 스크립트는 수집·정리만 하고 최종 주제를 결정하지 않습니다. 수집이 끝나면 ChatGPT Pro 주제 심사 프롬프트를 화면에 준비하며, 내가 직접 복사해 심사 결과를 확인한 뒤 선정 후보를 불러옵니다. 의료·법률·금융·재정·전문 안전 주제는 앞단과 심사 프롬프트에서 이중으로 제외합니다.
+                      앱은 지식iN에서 실제 질문을 넓게 찾고, 동일 URL·동일
+                      질문은 제거한 뒤 유사 질문을 묶습니다. 그중 서로 다른
+                      문제를 최대 10~15개 수준으로 추려
+                      검색어트렌드·카페·블로그·뉴스·웹문서 데이터를 Evidence
+                      Bundle JSON으로 붙입니다. 검색어트렌드는 원 질문 한 문장만
+                      보지 않고 관련 검색 의도군을 함께 조회합니다. 스크립트는
+                      수집·정리만 하고 최종 주제를 결정하지 않습니다. 수집이
+                      끝나면 ChatGPT Pro 주제 심사 프롬프트를 화면에 준비하며,
+                      내가 직접 복사해 심사 결과를 확인한 뒤 선정 후보를
+                      불러옵니다. 의료·법률·금융·재정·전문 안전 주제는 앞단과
+                      심사 프롬프트에서 이중으로 제외합니다.
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-zinc-400">
-                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">지식iN · 실제 질문</span>
-                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">카페 · 반복 불편</span>
-                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">블로그 · 표현/사례</span>
-                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">뉴스 · 변경 감지</span>
-                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">웹문서 · 공식 근거 후보</span>
-                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">검색어트렌드 · 수요/시기</span>
+                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">
+                        지식iN · 실제 질문
+                      </span>
+                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">
+                        카페 · 반복 불편
+                      </span>
+                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">
+                        블로그 · 표현/사례
+                      </span>
+                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">
+                        뉴스 · 변경 감지
+                      </span>
+                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">
+                        웹문서 · 공식 근거 후보
+                      </span>
+                      <span className="rounded-full border border-zinc-800 px-2.5 py-1">
+                        검색어트렌드 · 수요/시기
+                      </span>
                     </div>
                   </div>
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
                     {!autoResearchLoading && autoReviewPrompt ? (
                       <>
-                        <div className="text-xs font-medium text-zinc-300">{autoSourceQuestion ? "최종 작성 프롬프트 복사" : "프롬프트 복사하기"}</div>
-                        <p className="mt-1 text-xs leading-5 text-zinc-500">{autoSourceQuestion ? "선택한 지식iN 원문에 대한 증거 수집이 끝났습니다. 프롬프트를 ChatGPT Pro에 붙여넣으면 별도의 후보 선택 없이 내부 품질 검증과 공식 원문 재검증을 거쳐 통과 시 바로 WordPress 최종 아웃풋을 작성합니다." : "NAVER 6개 API 증거 수집이 끝났습니다. 아래 프롬프트를 복사해 ChatGPT Pro에 붙여넣고 추천 순위를 확인한 뒤 번호만 선택하면 됩니다."}</p>
+                        <div className="text-xs font-medium text-zinc-300">
+                          {autoSourceQuestion
+                            ? "최종 작성 프롬프트 복사"
+                            : "프롬프트 복사하기"}
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">
+                          {autoSourceQuestion
+                            ? "선택한 지식iN 원문에 대한 증거 수집이 끝났습니다. 프롬프트를 ChatGPT Pro에 붙여넣으면 별도의 후보 선택 없이 내부 품질 검증과 공식 원문 재검증을 거쳐 통과 시 바로 WordPress 최종 아웃풋을 작성합니다."
+                            : "NAVER 6개 API 증거 수집이 끝났습니다. 아래 프롬프트를 복사해 ChatGPT Pro에 붙여넣고 추천 순위를 확인한 뒤 번호만 선택하면 됩니다."}
+                        </p>
                         <div className="mt-2 text-[11px] leading-5 text-zinc-500">
-                          최근 프롬프트 사용 {usedTopics.filter((item) => sessionNow - new Date(item.usedAt).getTime() <= 60 * 86_400_000).length}개 · 60일 중복 방지
+                          최근 프롬프트 사용{" "}
+                          {
+                            usedTopics.filter(
+                              (item) =>
+                                sessionNow - new Date(item.usedAt).getTime() <=
+                                60 * 86_400_000,
+                            ).length
+                          }
+                          개 · 60일 중복 방지
                         </div>
                         <div className="mt-4">
                           <button
@@ -1426,20 +1927,49 @@ export function ResearchWorkbench() {
                                 : "border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white",
                             )}
                           >
-                            {autoReviewPromptCopied ? <CheckIcon className="h-3.5 w-3.5 shrink-0" /> : <CopyIcon className="h-3.5 w-3.5 shrink-0" />}
-                            <span className="min-w-0 truncate">{autoReviewPromptCopied ? "복사 완료" : "프롬프트 복사"}</span>
+                            {autoReviewPromptCopied ? (
+                              <CheckIcon className="h-3.5 w-3.5 shrink-0" />
+                            ) : (
+                              <CopyIcon className="h-3.5 w-3.5 shrink-0" />
+                            )}
+                            <span className="min-w-0 truncate">
+                              {autoReviewPromptCopied
+                                ? "복사 완료"
+                                : "프롬프트 복사"}
+                            </span>
                           </button>
-                          <div aria-live="polite" className="min-h-5 pt-1.5 text-center text-[10px] leading-4 text-zinc-500">
-                            {autoReviewPromptCopied ? "클립보드에 복사되었습니다. ChatGPT Pro에 붙여넣으세요." : autoSourceQuestion ? "선택 단계 없이 검증을 통과하면 # 1~# 4 최종 아웃풋이 바로 생성됩니다." : "추천 번호를 선택하면 조사·검증형은 공식 원문 검증 후 WordPress 원고 작성까지 이어집니다."}
+                          <div
+                            aria-live="polite"
+                            className="min-h-5 pt-1.5 text-center text-[10px] leading-4 text-zinc-500"
+                          >
+                            {autoReviewPromptCopied
+                              ? "클립보드에 복사되었습니다. ChatGPT Pro에 붙여넣으세요."
+                              : autoSourceQuestion
+                                ? "선택 단계 없이 검증을 통과하면 # 1~# 4 최종 아웃풋이 바로 생성됩니다."
+                                : "추천 번호를 선택하면 조사·검증형은 공식 원문 검증 후 WordPress 원고 작성까지 이어집니다."}
                           </div>
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="text-xs font-medium text-zinc-300">오늘 할 일</div>
-                        <p className="mt-1 text-xs leading-5 text-zinc-500">버튼을 누르면 NAVER 6개 API 데이터를 수집·정리하고 ChatGPT Pro 심사 프롬프트를 만듭니다. 최종 주제 판단은 ChatGPT Pro가 하고, 내가 추천 번호를 선택합니다.</p>
+                        <div className="text-xs font-medium text-zinc-300">
+                          오늘 할 일
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">
+                          버튼을 누르면 NAVER 6개 API 데이터를 수집·정리하고
+                          ChatGPT Pro 심사 프롬프트를 만듭니다. 최종 주제 판단은
+                          ChatGPT Pro가 하고, 내가 추천 번호를 선택합니다.
+                        </p>
                         <div className="mt-2 text-[11px] leading-5 text-zinc-500">
-                          최근 프롬프트 사용 {usedTopics.filter((item) => sessionNow - new Date(item.usedAt).getTime() <= 60 * 86_400_000).length}개 · 60일 중복 방지
+                          최근 프롬프트 사용{" "}
+                          {
+                            usedTopics.filter(
+                              (item) =>
+                                sessionNow - new Date(item.usedAt).getTime() <=
+                                60 * 86_400_000,
+                            ).length
+                          }
+                          개 · 60일 중복 방지
                         </div>
                         <button
                           type="button"
@@ -1477,27 +2007,40 @@ export function ResearchWorkbench() {
                   <div className="mt-5 border-t border-zinc-800 pt-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <div className="text-xs font-medium text-zinc-300">이번 조사 범위</div>
+                        <div className="text-xs font-medium text-zinc-300">
+                          이번 조사 범위
+                        </div>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {autoResearchSeeds.map((seed) => (
-                            <span key={seed.query} className="rounded-full bg-zinc-800 px-2.5 py-1 text-[11px] text-zinc-300">
+                            <span
+                              key={seed.query}
+                              className="rounded-full bg-zinc-800 px-2.5 py-1 text-[11px] text-zinc-300"
+                            >
                               {seed.query} · {seed.category}
                             </span>
                           ))}
                         </div>
                         {autoResearchCooldown ? (
                           <p className="mt-2 text-[11px] leading-5 text-zinc-500">
-                            실제로 콘텐츠 제작에 사용한 최근 주제 {autoResearchCooldown.usedCount}개만 {autoResearchCooldown.usedDays}일 동안 유사 주제 추천에서 제외합니다. 단순 조사·노출만으로는 후보를 차단하지 않습니다.
+                            실제로 콘텐츠 제작에 사용한 최근 주제{" "}
+                            {autoResearchCooldown.usedCount}개만{" "}
+                            {autoResearchCooldown.usedDays}일 동안 유사 주제
+                            추천에서 제외합니다. 단순 조사·노출만으로는 후보를
+                            차단하지 않습니다.
                           </p>
                         ) : null}
                       </div>
-
                     </div>
                     {autoResearchWarnings.length ? (
                       <details className="mt-4 rounded-xl border border-amber-900/40 bg-amber-950/20 px-4 py-3 text-xs text-amber-200">
-                        <summary className="cursor-pointer font-medium">일부 API 결과를 가져오지 못했습니다 ({autoResearchWarnings.length})</summary>
+                        <summary className="cursor-pointer font-medium">
+                          일부 API 결과를 가져오지 못했습니다 (
+                          {autoResearchWarnings.length})
+                        </summary>
                         <ul className="mt-2 space-y-1 text-amber-300/80">
-                          {autoResearchWarnings.map((warning) => <li key={warning}>· {warning}</li>)}
+                          {autoResearchWarnings.map((warning) => (
+                            <li key={warning}>· {warning}</li>
+                          ))}
                         </ul>
                       </details>
                     ) : null}
@@ -1538,19 +2081,26 @@ export function ResearchWorkbench() {
                   >
                     {kinUrlResearchLoading ? (
                       <>
-                        <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-white" />
+                        <span
+                          aria-hidden="true"
+                          className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-white"
+                        />
                         원문 조사 중...
                       </>
                     ) : (
                       <>
-                        <SparkIcon className="h-4 w-4 shrink-0" />
-                        이 질문 조사하기
+                        <SparkIcon className="h-4 w-4 shrink-0" />이 질문
+                        조사하기
                       </>
                     )}
                   </button>
                 </form>
                 <p className="mt-2 break-words text-[11px] leading-5 text-zinc-400 [overflow-wrap:anywhere]">
-                  URL을 넣으면 후보 선택 단계는 생략합니다. 프롬프트 생성이 끝나면 같은 원문 URL의 Notion 페이지를 찾아 상단 속성은 그대로 유지하고 본문을 ChatGPT Pro 작성 프롬프트로 저장합니다. Update content 권한이 없으면 같은 페이지 맨 위에 프롬프트를 추가하는 방식으로 자동 전환합니다.
+                  URL을 넣으면 후보 선택 단계는 생략합니다. 프롬프트 생성이
+                  끝나면 같은 원문 URL의 Notion 페이지를 찾아 상단 속성은 그대로
+                  유지하고 본문을 ChatGPT Pro 작성 프롬프트로 저장합니다. Update
+                  content 권한이 없으면 같은 페이지 맨 위에 프롬프트를 추가하는
+                  방식으로 자동 전환합니다.
                 </p>
                 {kinUrlResearchError ? (
                   <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
@@ -1564,7 +2114,8 @@ export function ResearchWorkbench() {
                     rel="noopener"
                     className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:border-zinc-300 hover:text-zinc-950"
                   >
-                    Notion에서 작성 프롬프트 열기 <ExternalIcon className="h-3 w-3" />
+                    Notion에서 작성 프롬프트 열기{" "}
+                    <ExternalIcon className="h-3 w-3" />
                   </a>
                 ) : null}
                 {notionPromptSaveNotice ? (
@@ -1575,19 +2126,32 @@ export function ResearchWorkbench() {
                 {autoSourceQuestion ? (
                   <div className="mt-3 rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="font-medium text-zinc-700">원문 기준 조사</span>
-                      <span className="min-w-0 break-words font-medium text-zinc-600 [overflow-wrap:anywhere]">{autoSourceQuestion.title}</span>
-                      <a href={autoSourceQuestion.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 font-medium text-zinc-500 hover:text-zinc-900">
+                      <span className="font-medium text-zinc-700">
+                        원문 기준 조사
+                      </span>
+                      <span className="min-w-0 break-words font-medium text-zinc-600 [overflow-wrap:anywhere]">
+                        {autoSourceQuestion.title}
+                      </span>
+                      <a
+                        href={autoSourceQuestion.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex shrink-0 items-center gap-1 font-medium text-zinc-500 hover:text-zinc-900"
+                      >
                         원문 <ExternalIcon className="h-3 w-3" />
                       </a>
                     </div>
                     <div className="mt-3 border-t border-zinc-200 pt-3">
-                      <div className="text-[11px] font-semibold text-zinc-600">질문 내용</div>
+                      <div className="text-[11px] font-semibold text-zinc-600">
+                        질문 내용
+                      </div>
                       <p className="mt-1 max-h-52 overflow-y-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-zinc-500 [overflow-wrap:anywhere]">
                         {autoSourceQuestion.questionText}
                       </p>
                       <div className="mt-2 text-[10px] text-zinc-400">
-                        {autoSourceQuestion.questionTextVerified ? "원문 본문 영역 자동 확인 완료" : "원문 meta description을 대체 내용으로 사용"}
+                        {autoSourceQuestion.questionTextVerified
+                          ? "원문 본문 영역 자동 확인 완료"
+                          : "원문 meta description을 대체 내용으로 사용"}
                       </div>
                     </div>
                   </div>
@@ -1595,22 +2159,58 @@ export function ResearchWorkbench() {
               </section>
 
               {autoReviewPrompt || autoEvidenceBundles.length ? (
-                <section id="topic-review-panel" className="scroll-mt-24 rounded-3xl border border-zinc-200 bg-white p-5 sm:p-6">
+                <section
+                  id="topic-review-panel"
+                  className="scroll-mt-24 rounded-3xl border border-zinc-200 bg-white p-5 sm:p-6"
+                >
                   <SectionTitle
                     eyebrow="ChatGPT Pro Topic Review"
-                    title={autoSourceQuestion ? "선택한 지식iN 질문을 바로 검증·작성" : "오늘의 데이터가 담긴 프롬프트를 ChatGPT Pro에서 직접 심사"}
-                    description={autoSourceQuestion ? "입력한 원문 질문은 이미 사용자가 선택했으므로 추천 순위와 번호 선택 단계를 건너뜁니다. ChatGPT Pro가 내부적으로 게시 가치·기존 글 중복·공식 근거를 검증하고, 조사·검증형으로 통과하면 같은 답변에서 바로 # 1 게시용 본문부터 # 4 지식iN 답변 추천까지 완성합니다. 직접 테스트가 꼭 필요한 경우에만 테스트 계획에서 멈춥니다." : "Evidence Bundle이 포함된 심사 프롬프트를 ChatGPT Pro에 입력하면 최대 3개의 주제를 추천합니다. 그 대화에서 1·2·3 중 하나만 선택하면 조사·검증형은 별도 확인 요청 없이 공식 원문 재검증부터 Auto Publisher용 WordPress 원고 작성까지 이어서 진행합니다. 직접 테스트형만 실제 테스트 결과가 필요합니다."}
+                    title={
+                      autoSourceQuestion
+                        ? "선택한 지식iN 질문을 바로 검증·작성"
+                        : "오늘의 데이터가 담긴 프롬프트를 ChatGPT Pro에서 직접 심사"
+                    }
+                    description={
+                      autoSourceQuestion
+                        ? "입력한 원문 질문은 이미 사용자가 선택했으므로 추천 순위와 번호 선택 단계를 건너뜁니다. ChatGPT Pro가 내부적으로 게시 가치·기존 글 중복·공식 근거를 검증하고, 조사·검증형으로 통과하면 같은 답변에서 바로 # 1 게시용 본문부터 # 4 지식iN 답변 추천까지 완성합니다. 직접 테스트가 꼭 필요한 경우에만 테스트 계획에서 멈춥니다."
+                        : "Evidence Bundle이 포함된 심사 프롬프트를 ChatGPT Pro에 입력하면 최대 3개의 주제를 추천합니다. 그 대화에서 1·2·3 중 하나만 선택하면 조사·검증형은 별도 확인 요청 없이 공식 원문 재검증부터 Auto Publisher용 WordPress 원고 작성까지 이어서 진행합니다. 직접 테스트형만 실제 테스트 결과가 필요합니다."
+                    }
                   />
 
                   <div className="mb-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <div className="text-xs font-semibold text-zinc-700">{autoSourceQuestion ? "ChatGPT Pro에 입력할 최종 작성 프롬프트" : "ChatGPT Pro에 입력할 주제 심사 프롬프트"}</div>
-                        <p className="mt-1 text-[11px] leading-5 text-zinc-400">{autoSourceQuestion ? "선택한 원문 질문과 유사 독립 질문, 검색어트렌드·카페·블로그·뉴스·웹문서 Evidence JSON이 포함되어 있습니다. 후보 비교는 하지 않고 내부 검증을 통과하면 곧바로 최종 WordPress 아웃풋을 작성하도록 지시합니다." : "오늘 수집한 지식iN 질문과 검색어트렌드·카페·블로그·뉴스·웹문서 Evidence JSON이 포함되어 있습니다. 앱은 이 프롬프트를 만들기만 하며, 실제 주제 선정은 ChatGPT Pro가 합니다."}</p>
+                        <div className="text-xs font-semibold text-zinc-700">
+                          {autoSourceQuestion
+                            ? "ChatGPT Pro에 입력할 최종 작성 프롬프트"
+                            : "ChatGPT Pro에 입력할 주제 심사 프롬프트"}
+                        </div>
+                        <p className="mt-1 text-[11px] leading-5 text-zinc-400">
+                          {autoSourceQuestion
+                            ? "선택한 원문 질문과 유사 독립 질문, 검색어트렌드·카페·블로그·뉴스·웹문서 Evidence JSON이 포함되어 있습니다. 후보 비교는 하지 않고 내부 검증을 통과하면 곧바로 최종 WordPress 아웃풋을 작성하도록 지시합니다."
+                            : "오늘 수집한 지식iN 질문과 검색어트렌드·카페·블로그·뉴스·웹문서 Evidence JSON이 포함되어 있습니다. 앱은 이 프롬프트를 만들기만 하며, 실제 주제 선정은 ChatGPT Pro가 합니다."}
+                        </p>
                       </div>
-                      <button type="button" onClick={() => void copyAutoReviewPrompt()} className={classNames("inline-flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition", autoReviewPromptCopied ? "bg-emerald-700 text-white" : "bg-zinc-900 text-white hover:bg-zinc-800")}>
-                        {autoReviewPromptCopied ? <CheckIcon className="h-3.5 w-3.5 shrink-0" /> : <CopyIcon className="h-3.5 w-3.5 shrink-0" />}
-                        <span className="truncate">{autoReviewPromptCopied ? "복사 완료" : "프롬프트 복사"}</span>
+                      <button
+                        type="button"
+                        onClick={() => void copyAutoReviewPrompt()}
+                        className={classNames(
+                          "inline-flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition",
+                          autoReviewPromptCopied
+                            ? "bg-emerald-700 text-white"
+                            : "bg-zinc-900 text-white hover:bg-zinc-800",
+                        )}
+                      >
+                        {autoReviewPromptCopied ? (
+                          <CheckIcon className="h-3.5 w-3.5 shrink-0" />
+                        ) : (
+                          <CopyIcon className="h-3.5 w-3.5 shrink-0" />
+                        )}
+                        <span className="truncate">
+                          {autoReviewPromptCopied
+                            ? "복사 완료"
+                            : "프롬프트 복사"}
+                        </span>
                       </button>
                     </div>
                     <textarea
@@ -1623,30 +2223,69 @@ export function ResearchWorkbench() {
 
                   <div className="grid min-w-0 max-w-full gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
                     <div className="rounded-2xl bg-zinc-50 p-4">
-                      <div className="text-xs font-semibold text-zinc-700">오늘의 Evidence Bundle</div>
+                      <div className="text-xs font-semibold text-zinc-700">
+                        오늘의 Evidence Bundle
+                      </div>
                       <p className="mt-1 text-xs leading-5 text-zinc-500">
-                        지식iN 원시 결과의 중복을 제거하고 유사 질문을 묶은 뒤, 서로 다른 문제 {autoEvidenceBundles.length}개를 Evidence Bundle로 만들었습니다. 각 후보에는 관련 검색어군 트렌드와 카페·블로그·뉴스·웹문서 원문 URL/스니펫이 포함되며 최종 판단은 ChatGPT Pro가 합니다.
+                        지식iN 원시 결과의 중복을 제거하고 유사 질문을 묶은 뒤,
+                        서로 다른 문제 {autoEvidenceBundles.length}개를 Evidence
+                        Bundle로 만들었습니다. 각 후보에는 관련 검색어군
+                        트렌드와 카페·블로그·뉴스·웹문서 원문 URL/스니펫이
+                        포함되며 최종 판단은 ChatGPT Pro가 합니다.
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <button type="button" onClick={() => void copyAutoReviewPrompt()} className={classNames("inline-flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition", autoReviewPromptCopied ? "bg-emerald-700 text-white" : "bg-zinc-900 text-white hover:bg-zinc-800")}>
-                          {autoReviewPromptCopied ? <CheckIcon className="h-3.5 w-3.5 shrink-0" /> : <CopyIcon className="h-3.5 w-3.5 shrink-0" />}
-                          <span className="truncate">{autoReviewPromptCopied ? "복사 완료" : "프롬프트 다시 복사"}</span>
+                        <button
+                          type="button"
+                          onClick={() => void copyAutoReviewPrompt()}
+                          className={classNames(
+                            "inline-flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition",
+                            autoReviewPromptCopied
+                              ? "bg-emerald-700 text-white"
+                              : "bg-zinc-900 text-white hover:bg-zinc-800",
+                          )}
+                        >
+                          {autoReviewPromptCopied ? (
+                            <CheckIcon className="h-3.5 w-3.5 shrink-0" />
+                          ) : (
+                            <CopyIcon className="h-3.5 w-3.5 shrink-0" />
+                          )}
+                          <span className="truncate">
+                            {autoReviewPromptCopied
+                              ? "복사 완료"
+                              : "프롬프트 다시 복사"}
+                          </span>
                         </button>
-                        <button type="button" onClick={() => void copyEvidenceJson()} className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 hover:border-zinc-300 hover:text-zinc-900">
-                          <FileTextIcon className="h-3.5 w-3.5" /> Evidence JSON 복사
+                        <button
+                          type="button"
+                          onClick={() => void copyEvidenceJson()}
+                          className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 hover:border-zinc-300 hover:text-zinc-900"
+                        >
+                          <FileTextIcon className="h-3.5 w-3.5" /> Evidence JSON
+                          복사
                         </button>
                       </div>
                     </div>
                     <div className="rounded-2xl border border-zinc-200 p-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">수동 제어 흐름</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                        수동 제어 흐름
+                      </div>
                       {autoSourceQuestion ? (
                         <ol className="mt-2 space-y-1.5 text-xs leading-5 text-zinc-600">
-                          <li>1. 선택한 지식iN 원문을 기준으로 Evidence 수집</li>
+                          <li>
+                            1. 선택한 지식iN 원문을 기준으로 Evidence 수집
+                          </li>
                           <li>2. 최종 작성 프롬프트를 내가 확인·복사</li>
-                          <li>3. ChatGPT Pro가 게시 가치·기존 글 중복을 내부 검증</li>
+                          <li>
+                            3. ChatGPT Pro가 게시 가치·기존 글 중복을 내부 검증
+                          </li>
                           <li>4. 공식 1차 출처를 현재 기준으로 재검증</li>
-                          <li>5. 통과하면 선택 단계 없이 # 1~# 4 최종 아웃풋 작성</li>
-                          <li>6. 테스트가 필수인 경우에만 실제 결과 입력 전까지 보류</li>
+                          <li>
+                            5. 통과하면 선택 단계 없이 # 1~# 4 최종 아웃풋 작성
+                          </li>
+                          <li>
+                            6. 테스트가 필수인 경우에만 실제 결과 입력 전까지
+                            보류
+                          </li>
                         </ol>
                       ) : (
                         <ol className="mt-2 space-y-1.5 text-xs leading-5 text-zinc-600">
@@ -1654,8 +2293,13 @@ export function ResearchWorkbench() {
                           <li>2. 생성된 프롬프트를 내가 확인·복사</li>
                           <li>3. ChatGPT Pro가 주제를 비교·추천</li>
                           <li>4. 내가 1·2·3 중 하나만 선택</li>
-                          <li>5. 조사·검증형은 공식 원문 재검증 후 바로 WordPress 원고 작성</li>
-                          <li>6. 직접 테스트형만 실제 결과를 기록한 뒤 원고 작성</li>
+                          <li>
+                            5. 조사·검증형은 공식 원문 재검증 후 바로 WordPress
+                            원고 작성
+                          </li>
+                          <li>
+                            6. 직접 테스트형만 실제 결과를 기록한 뒤 원고 작성
+                          </li>
                         </ol>
                       )}
                     </div>
@@ -1669,12 +2313,15 @@ export function ResearchWorkbench() {
                         tabIndex={0}
                         title="클릭하면 이 후보만 담은 프롬프트를 복사하고 현재 목록에서 숨깁니다."
                         onClick={(event) => {
-                          if ((event.target as HTMLElement).closest("a,button")) return;
+                          if ((event.target as HTMLElement).closest("a,button"))
+                            return;
                           void copyEvidenceBundlePrompt(bundle);
                         }}
                         onKeyDown={(event) => {
-                          if ((event.target as HTMLElement).closest("a,button")) return;
-                          if (event.key !== "Enter" && event.key !== " ") return;
+                          if ((event.target as HTMLElement).closest("a,button"))
+                            return;
+                          if (event.key !== "Enter" && event.key !== " ")
+                            return;
                           event.preventDefault();
                           void copyEvidenceBundlePrompt(bundle);
                         }}
@@ -1682,84 +2329,189 @@ export function ResearchWorkbench() {
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-[11px] font-medium text-zinc-400">{bundle.discoveryCategory}</div>
-                            <h3 className="mt-1 break-words font-semibold leading-6 text-zinc-800 [overflow-wrap:anywhere]">{bundle.query}</h3>
+                            <div className="text-[11px] font-medium text-zinc-400">
+                              {bundle.discoveryCategory}
+                            </div>
+                            <h3 className="mt-1 break-words font-semibold leading-6 text-zinc-800 [overflow-wrap:anywhere]">
+                              {bundle.query}
+                            </h3>
                           </div>
-                          <div className="rounded-lg bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-500">지식iN 독립 질문 {bundle.questionStats?.uniqueCount ?? bundle.questions.length}건</div>
+                          <div className="rounded-lg bg-zinc-100 px-2 py-1 text-[11px] font-medium text-zinc-500">
+                            지식iN 독립 질문{" "}
+                            {bundle.questionStats?.uniqueCount ??
+                              bundle.questions.length}
+                            건
+                          </div>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-zinc-500">
-                          <span className={classNames("rounded-full px-2 py-1", bundle.coverage.trend ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100")}>트렌드 {bundle.coverage.trend ? "있음" : "없음"}</span>
-                          <span className={classNames("rounded-full px-2 py-1", bundle.coverage.cafe ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100")}>카페 {bundle.cafe.length}</span>
-                          <span className={classNames("rounded-full px-2 py-1", bundle.coverage.blog ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100")}>블로그 {bundle.blog.length}</span>
-                          <span className={classNames("rounded-full px-2 py-1", bundle.coverage.news ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100")}>뉴스 {bundle.news.length}</span>
-                          <span className={classNames("rounded-full px-2 py-1", bundle.coverage.web ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100")}>웹문서 {bundle.web.length}</span>
+                          <span
+                            className={classNames(
+                              "rounded-full px-2 py-1",
+                              bundle.coverage.trend
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-zinc-100",
+                            )}
+                          >
+                            트렌드 {bundle.coverage.trend ? "있음" : "없음"}
+                          </span>
+                          <span
+                            className={classNames(
+                              "rounded-full px-2 py-1",
+                              bundle.coverage.cafe
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-zinc-100",
+                            )}
+                          >
+                            카페 {bundle.cafe.length}
+                          </span>
+                          <span
+                            className={classNames(
+                              "rounded-full px-2 py-1",
+                              bundle.coverage.blog
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-zinc-100",
+                            )}
+                          >
+                            블로그 {bundle.blog.length}
+                          </span>
+                          <span
+                            className={classNames(
+                              "rounded-full px-2 py-1",
+                              bundle.coverage.news
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-zinc-100",
+                            )}
+                          >
+                            뉴스 {bundle.news.length}
+                          </span>
+                          <span
+                            className={classNames(
+                              "rounded-full px-2 py-1",
+                              bundle.coverage.web
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-zinc-100",
+                            )}
+                          >
+                            웹문서 {bundle.web.length}
+                          </span>
                         </div>
                         {bundle.trend.keywords?.length ? (
-                          <p className="mt-2 break-words text-[10px] leading-4 text-zinc-400 [overflow-wrap:anywhere]">트렌드 검색어군 · {bundle.trend.keywords.join(" · ")} · 비교 배치 {bundle.trend.comparisonBatch || 1}</p>
+                          <p className="mt-2 break-words text-[10px] leading-4 text-zinc-400 [overflow-wrap:anywhere]">
+                            트렌드 검색어군 ·{" "}
+                            {bundle.trend.keywords.join(" · ")} · 비교 배치{" "}
+                            {bundle.trend.comparisonBatch || 1}
+                          </p>
                         ) : null}
                         <div className="mt-3 space-y-2">
-                          {bundle.questions.slice(0, 3).map((question, index) => (
-                            <div key={`${bundle.id}-q-${index}`} className="rounded-xl bg-zinc-50 p-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="break-words text-xs leading-5 text-zinc-700 [overflow-wrap:anywhere]">{question.title}</p>
-                                  {(question.similarCount || 1) > 1 ? (
-                                    <p className="mt-1 text-[10px] font-medium text-emerald-700">유사한 독립 질문 {question.similarCount}건 묶음</p>
+                          {bundle.questions
+                            .slice(0, 3)
+                            .map((question, index) => (
+                              <div
+                                key={`${bundle.id}-q-${index}`}
+                                className="rounded-xl bg-zinc-50 p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="break-words text-xs leading-5 text-zinc-700 [overflow-wrap:anywhere]">
+                                      {question.title}
+                                    </p>
+                                    {(question.similarCount || 1) > 1 ? (
+                                      <p className="mt-1 text-[10px] font-medium text-emerald-700">
+                                        유사한 독립 질문 {question.similarCount}
+                                        건 묶음
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                  {question.url ? (
+                                    <a
+                                      href={question.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="shrink-0 text-[10px] font-medium text-zinc-400 hover:text-zinc-900"
+                                    >
+                                      원문{" "}
+                                      <ExternalIcon className="ml-0.5 inline h-3 w-3" />
+                                    </a>
                                   ) : null}
                                 </div>
-                                {question.url ? (
-                                  <a href={question.url} target="_blank" rel="noreferrer" className="shrink-0 text-[10px] font-medium text-zinc-400 hover:text-zinc-900">
-                                    원문 <ExternalIcon className="ml-0.5 inline h-3 w-3" />
-                                  </a>
+                                {question.relatedQuestions?.length ? (
+                                  <div className="mt-2 space-y-1 border-t border-zinc-200/70 pt-2">
+                                    {question.relatedQuestions
+                                      .slice(0, 3)
+                                      .map((related, relatedIndex) => (
+                                        <div
+                                          key={`${bundle.id}-q-${index}-related-${relatedIndex}`}
+                                          className="flex items-start justify-between gap-2 text-[10px] leading-4 text-zinc-500"
+                                        >
+                                          <span className="min-w-0 break-words line-clamp-1 [overflow-wrap:anywhere]">
+                                            ↳ {related.title}
+                                          </span>
+                                          {related.url ? (
+                                            <a
+                                              href={related.url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="shrink-0 font-medium text-zinc-400 hover:text-zinc-900"
+                                            >
+                                              원문
+                                            </a>
+                                          ) : null}
+                                        </div>
+                                      ))}
+                                  </div>
                                 ) : null}
                               </div>
-                              {question.relatedQuestions?.length ? (
-                                <div className="mt-2 space-y-1 border-t border-zinc-200/70 pt-2">
-                                  {question.relatedQuestions.slice(0, 3).map((related, relatedIndex) => (
-                                    <div key={`${bundle.id}-q-${index}-related-${relatedIndex}`} className="flex items-start justify-between gap-2 text-[10px] leading-4 text-zinc-500">
-                                      <span className="min-w-0 break-words line-clamp-1 [overflow-wrap:anywhere]">↳ {related.title}</span>
-                                      {related.url ? (
-                                        <a href={related.url} target="_blank" rel="noreferrer" className="shrink-0 font-medium text-zinc-400 hover:text-zinc-900">원문</a>
-                                      ) : null}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </div>
-                          ))}
+                            ))}
                         </div>
-                        <p className="mt-3 border-t border-zinc-100 pt-3 text-[10px] font-medium text-zinc-400">카드 빈 영역을 클릭하면 이 후보만 담은 프롬프트를 복사하고 현재 목록에서 숨깁니다.</p>
+                        <p className="mt-3 border-t border-zinc-100 pt-3 text-[10px] font-medium text-zinc-400">
+                          카드 빈 영역을 클릭하면 이 후보만 담은 프롬프트를
+                          복사하고 현재 목록에서 숨깁니다.
+                        </p>
                       </article>
                     ))}
                   </div>
 
                   <details className="mt-5 rounded-2xl border border-zinc-200 p-4">
-                    <summary className="cursor-pointer text-xs font-semibold text-zinc-600">Evidence Bundle JSON 미리보기</summary>
-                    <pre className="mt-3 max-h-72 w-full min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-all rounded-xl bg-zinc-950 p-4 text-[10px] leading-5 text-zinc-300">{JSON.stringify(autoEvidenceBundles, null, 2)}</pre>
+                    <summary className="cursor-pointer text-xs font-semibold text-zinc-600">
+                      Evidence Bundle JSON 미리보기
+                    </summary>
+                    <pre className="mt-3 max-h-72 w-full min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-all rounded-xl bg-zinc-950 p-4 text-[10px] leading-5 text-zinc-300">
+                      {JSON.stringify(autoEvidenceBundles, null, 2)}
+                    </pre>
                   </details>
 
                   {!autoSourceQuestion ? (
-                  <div className="mt-5 border-t border-zinc-100 pt-5">
-                    <label className="block">
-                      <span className="text-xs font-semibold text-zinc-700">선택 사항 · ChatGPT Pro 심사 결과를 앱에 보관</span>
-                      <span className="mt-1 block text-[11px] leading-5 text-zinc-400">WordPress 글 작성만 원하면 ChatGPT Pro에서 추천 번호를 선택하면 됩니다. 후보 큐에 저장하거나 직접 테스트 기록을 관리하고 싶을 때만 추천 보고서와 마지막 ```json 코드블록을 포함한 답변 전체를 여기에 붙여넣으세요.</span>
-                      <textarea
-                        value={autoReviewOutput}
-                        onChange={(event) => setAutoReviewOutput(event.target.value)}
-                        rows={10}
-                        placeholder='{"reviewSummary":"...","reviews":[...]}'
-                        className="mt-2 w-full min-w-0 max-w-full resize-y rounded-2xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-xs leading-5 outline-none placeholder:text-zinc-300 focus:border-zinc-400"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={importTopicReview}
-                      disabled={!autoReviewOutput.trim()}
-                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
-                    >
-                      <CheckIcon className="h-4 w-4" /> ChatGPT Pro 선정 후보 불러오기
-                    </button>
-                  </div>
+                    <div className="mt-5 border-t border-zinc-100 pt-5">
+                      <label className="block">
+                        <span className="text-xs font-semibold text-zinc-700">
+                          선택 사항 · ChatGPT Pro 심사 결과를 앱에 보관
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-5 text-zinc-400">
+                          WordPress 글 작성만 원하면 ChatGPT Pro에서 추천 번호를
+                          선택하면 됩니다. 후보 큐에 저장하거나 직접 테스트
+                          기록을 관리하고 싶을 때만 추천 보고서와 마지막 ```json
+                          코드블록을 포함한 답변 전체를 여기에 붙여넣으세요.
+                        </span>
+                        <textarea
+                          value={autoReviewOutput}
+                          onChange={(event) =>
+                            setAutoReviewOutput(event.target.value)
+                          }
+                          rows={10}
+                          placeholder='{"reviewSummary":"...","reviews":[...]}'
+                          className="mt-2 w-full min-w-0 max-w-full resize-y rounded-2xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-xs leading-5 outline-none placeholder:text-zinc-300 focus:border-zinc-400"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={importTopicReview}
+                        disabled={!autoReviewOutput.trim()}
+                        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+                      >
+                        <CheckIcon className="h-4 w-4" /> ChatGPT Pro 선정 후보
+                        불러오기
+                      </button>
+                    </div>
                   ) : null}
                 </section>
               ) : null}
@@ -1771,38 +2523,83 @@ export function ResearchWorkbench() {
                   description="자동 탐색에서 빠진 주제를 더 조사하고 싶을 때만 사용합니다. 블로그·카페·지식iN은 문제 탐지, 뉴스는 변경 감지, 웹문서는 근거 후보 탐색에 사용합니다."
                 />
                 <div className="grid gap-3 lg:grid-cols-[170px_minmax(0,1fr)_120px_110px]">
-                  <select value={naverType} onChange={(event) => setNaverType(event.target.value as NaverType)} className="min-w-0 max-w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none focus:border-zinc-400">
-                    {NAVER_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                  <select
+                    value={naverType}
+                    onChange={(event) =>
+                      setNaverType(event.target.value as NaverType)
+                    }
+                    className="min-w-0 max-w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none focus:border-zinc-400"
+                  >
+                    {NAVER_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
                   </select>
                   <div className="relative">
                     <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                     <input
                       value={naverQuery}
                       onChange={(event) => setNaverQuery(event.target.value)}
-                      onKeyDown={(event) => { if (event.key === "Enter") void searchNaver(); }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void searchNaver();
+                      }}
                       placeholder="예: 세탁기 배수, 에어컨 냄새, 매트리스 버리기"
                       className="w-full rounded-xl border border-zinc-200 bg-white py-3 pl-10 pr-3 text-sm outline-none placeholder:text-zinc-300 focus:border-zinc-400"
                     />
                   </div>
-                  <select value={naverSort} onChange={(event) => setNaverSort(event.target.value as "sim" | "date")} className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none">
+                  <select
+                    value={naverSort}
+                    onChange={(event) =>
+                      setNaverSort(event.target.value as "sim" | "date")
+                    }
+                    className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                  >
                     <option value="sim">관련도순</option>
                     <option value="date">날짜순</option>
                   </select>
-                  <button type="button" onClick={() => void searchNaver()} disabled={naverLoading} className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-50">
+                  <button
+                    type="button"
+                    onClick={() => void searchNaver()}
+                    disabled={naverLoading}
+                    className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-50"
+                  >
                     {naverLoading ? "검색 중" : "검색"}
                   </button>
                 </div>
-                {naverError ? <div className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">{naverError} <span className="text-rose-500">(.env.local에 NAVER API HUB 인증정보가 필요합니다.)</span></div> : null}
+                {naverError ? (
+                  <div className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">
+                    {naverError}{" "}
+                    <span className="text-rose-500">
+                      (.env.local에 NAVER API HUB 인증정보가 필요합니다.)
+                    </span>
+                  </div>
+                ) : null}
                 {naverItems.length ? (
                   <div className="mt-5 grid max-h-[480px] gap-2 overflow-y-auto pr-1 scrollbar-thin md:grid-cols-2">
                     {naverItems.map((item, index) => (
-                      <div key={`${item.link}-${index}`} className="rounded-xl border border-zinc-200 p-3">
+                      <div
+                        key={`${item.link}-${index}`}
+                        className="rounded-xl border border-zinc-200 p-3"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-medium leading-5 text-zinc-800">{stripHtml(item.title)}</p>
-                            {item.description ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">{stripHtml(item.description)}</p> : null}
+                            <p className="text-sm font-medium leading-5 text-zinc-800">
+                              {stripHtml(item.title)}
+                            </p>
+                            {item.description ? (
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">
+                                {stripHtml(item.description)}
+                              </p>
+                            ) : null}
                           </div>
-                          <button type="button" onClick={() => saveNaverItem(item)} className="shrink-0 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50">저장</button>
+                          <button
+                            type="button"
+                            onClick={() => saveNaverItem(item)}
+                            className="shrink-0 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50"
+                          >
+                            저장
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1819,33 +2616,71 @@ export function ResearchWorkbench() {
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_140px_110px]">
                   <input
                     value={naverTrendKeywords}
-                    onChange={(event) => setNaverTrendKeywords(event.target.value)}
-                    onKeyDown={(event) => { if (event.key === "Enter") void searchNaverTrend(); }}
+                    onChange={(event) =>
+                      setNaverTrendKeywords(event.target.value)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void searchNaverTrend();
+                    }}
                     placeholder="예: 에어컨 냄새, 에어컨 쉰내, 에어컨 필터 청소"
                     className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none placeholder:text-zinc-300 focus:border-zinc-400"
                   />
-                  <select value={naverTrendRange} onChange={(event) => setNaverTrendRange(event.target.value as "90d" | "1y")} className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none">
+                  <select
+                    value={naverTrendRange}
+                    onChange={(event) =>
+                      setNaverTrendRange(event.target.value as "90d" | "1y")
+                    }
+                    className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                  >
                     <option value="90d">최근 90일</option>
                     <option value="1y">최근 1년</option>
                   </select>
-                  <button type="button" onClick={() => void searchNaverTrend()} disabled={naverTrendLoading} className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-50">
+                  <button
+                    type="button"
+                    onClick={() => void searchNaverTrend()}
+                    disabled={naverTrendLoading}
+                    className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-50"
+                  >
                     {naverTrendLoading ? "조회 중" : "조회"}
                   </button>
                 </div>
-                <p className="mt-2 text-[11px] leading-5 text-zinc-400">NAVER의 ratio는 절대 검색량이 아니라 요청한 기간·검색어 집합 안에서 0~100으로 정규화된 상대 지수입니다.</p>
-                {naverTrendError ? <div className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">{naverTrendError}</div> : null}
+                <p className="mt-2 text-[11px] leading-5 text-zinc-400">
+                  NAVER의 ratio는 절대 검색량이 아니라 요청한 기간·검색어 집합
+                  안에서 0~100으로 정규화된 상대 지수입니다.
+                </p>
+                {naverTrendError ? (
+                  <div className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">
+                    {naverTrendError}
+                  </div>
+                ) : null}
                 {naverTrendResults.length ? (
                   <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {naverTrendResults.map((result) => {
                       const score = recentTrendScore(result);
                       return (
-                        <div key={result.title} className="rounded-xl border border-zinc-200 p-3">
+                        <div
+                          key={result.title}
+                          className="rounded-xl border border-zinc-200 p-3"
+                        >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-sm font-medium text-zinc-800">{result.title}</p>
-                              <p className="mt-1 text-xs text-zinc-400">최근 상대지수 평균 <span className="font-semibold text-zinc-700">{score}/100</span></p>
+                              <p className="text-sm font-medium text-zinc-800">
+                                {result.title}
+                              </p>
+                              <p className="mt-1 text-xs text-zinc-400">
+                                최근 상대지수 평균{" "}
+                                <span className="font-semibold text-zinc-700">
+                                  {score}/100
+                                </span>
+                              </p>
                             </div>
-                            <button type="button" onClick={() => saveNaverTrend(result)} className="shrink-0 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50">저장</button>
+                            <button
+                              type="button"
+                              onClick={() => saveNaverTrend(result)}
+                              className="shrink-0 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50"
+                            >
+                              저장
+                            </button>
                           </div>
                         </div>
                       );
@@ -1864,21 +2699,70 @@ export function ResearchWorkbench() {
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {SOURCE_OPTIONS.map((option) => (
-                        <button key={option.kind} type="button" onClick={() => setManualKind(option.kind)} className={classNames("rounded-xl border px-3 py-2 text-xs font-medium transition", manualKind === option.kind ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50")}>{option.label}</button>
+                        <button
+                          key={option.kind}
+                          type="button"
+                          onClick={() => setManualKind(option.kind)}
+                          className={classNames(
+                            "rounded-xl border px-3 py-2 text-xs font-medium transition",
+                            manualKind === option.kind
+                              ? "border-zinc-900 bg-zinc-900 text-white"
+                              : "border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50",
+                          )}
+                        >
+                          {option.label}
+                        </button>
                       ))}
                     </div>
-                    <input value={manualTitle} onChange={(event) => setManualTitle(event.target.value)} placeholder={manualKind === "google-trends" ? "트렌드 키워드" : "관찰한 문제 / 공식 문서 제목"} className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none placeholder:text-zinc-300 focus:border-zinc-400" />
+                    <input
+                      value={manualTitle}
+                      onChange={(event) => setManualTitle(event.target.value)}
+                      placeholder={
+                        manualKind === "google-trends"
+                          ? "트렌드 키워드"
+                          : "관찰한 문제 / 공식 문서 제목"
+                      }
+                      className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none placeholder:text-zinc-300 focus:border-zinc-400"
+                    />
                     {manualKind === "google-trends" ? (
                       <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5">
                         <span className="text-xs text-zinc-500">관찰 점수</span>
-                        <input type="range" min="0" max="100" value={manualTrendScore} onChange={(event) => setManualTrendScore(event.target.value)} className="flex-1 accent-zinc-900" />
-                        <span className="w-8 text-right text-xs font-semibold">{manualTrendScore}</span>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={manualTrendScore}
+                          onChange={(event) =>
+                            setManualTrendScore(event.target.value)
+                          }
+                          className="flex-1 accent-zinc-900"
+                        />
+                        <span className="w-8 text-right text-xs font-semibold">
+                          {manualTrendScore}
+                        </span>
                       </div>
                     ) : (
-                      <input value={manualUrl} onChange={(event) => setManualUrl(event.target.value)} placeholder="원문 URL (선택)" className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none placeholder:text-zinc-300 focus:border-zinc-400" />
+                      <input
+                        value={manualUrl}
+                        onChange={(event) => setManualUrl(event.target.value)}
+                        placeholder="원문 URL (선택)"
+                        className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none placeholder:text-zinc-300 focus:border-zinc-400"
+                      />
                     )}
-                    <textarea value={manualNote} onChange={(event) => setManualNote(event.target.value)} placeholder="어떤 점이 중요한지 메모하세요. 예: ‘청소했는데도’, ‘소리는 나는데’라는 표현이 반복됨" rows={3} className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-3 text-sm leading-6 outline-none placeholder:text-zinc-300 focus:border-zinc-400" />
-                    <button type="button" onClick={addManualSignal} className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-medium text-white hover:bg-zinc-800"><PlusIcon className="h-4 w-4" /> 신호 저장</button>
+                    <textarea
+                      value={manualNote}
+                      onChange={(event) => setManualNote(event.target.value)}
+                      placeholder="어떤 점이 중요한지 메모하세요. 예: ‘청소했는데도’, ‘소리는 나는데’라는 표현이 반복됨"
+                      rows={3}
+                      className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-3 text-sm leading-6 outline-none placeholder:text-zinc-300 focus:border-zinc-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={addManualSignal}
+                      className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-medium text-white hover:bg-zinc-800"
+                    >
+                      <PlusIcon className="h-4 w-4" /> 신호 저장
+                    </button>
                   </div>
                 </section>
 
@@ -1888,11 +2772,29 @@ export function ResearchWorkbench() {
                     title="Search Console 실제 기회 가져오기"
                     description="세상 전체의 트렌드보다 Google이 이미 내 사이트와 연결한 검색어를 우선합니다. Performance CSV를 올리면 검색어별 노출·클릭·순위를 신호로 저장합니다."
                   />
-                  <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importSearchConsole(file); event.currentTarget.value = ""; }} />
-                  <button type="button" onClick={() => csvInputRef.current?.click()} className="flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-5 text-center transition hover:border-zinc-400 hover:bg-zinc-100/60">
+                  <input
+                    ref={csvInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void importSearchConsole(file);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => csvInputRef.current?.click()}
+                    className="flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-5 text-center transition hover:border-zinc-400 hover:bg-zinc-100/60"
+                  >
                     <UploadIcon className="mb-3 h-6 w-6 text-zinc-400" />
-                    <span className="text-sm font-medium text-zinc-700">Search Console CSV 선택</span>
-                    <span className="mt-1 text-xs text-zinc-400">Query / Clicks / Impressions / CTR / Position 자동 인식</span>
+                    <span className="text-sm font-medium text-zinc-700">
+                      Search Console CSV 선택
+                    </span>
+                    <span className="mt-1 text-xs text-zinc-400">
+                      Query / Clicks / Impressions / CTR / Position 자동 인식
+                    </span>
                   </button>
                 </section>
               </div>
@@ -1907,53 +2809,124 @@ export function ResearchWorkbench() {
                   <input
                     value={siteUrl}
                     onChange={(event) => setSiteUrl(event.target.value)}
-                    onKeyDown={(event) => { if (event.key === "Enter") void syncWordPressContent(); }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void syncWordPressContent();
+                    }}
                     placeholder="https://example.com"
                     className="min-w-0 rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none placeholder:text-zinc-300 focus:border-zinc-400"
                   />
-                  <button type="button" onClick={() => void syncWordPressContent()} disabled={siteContentLoading} className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-50">
+                  <button
+                    type="button"
+                    onClick={() => void syncWordPressContent()}
+                    disabled={siteContentLoading}
+                    className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-50"
+                  >
                     {siteContentLoading ? "동기화 중" : "기존 글 동기화"}
                   </button>
                 </div>
-                {siteContentError ? <div className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">{siteContentError}</div> : null}
+                {siteContentError ? (
+                  <div className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                    {siteContentError}
+                  </div>
+                ) : null}
                 {siteContents.length ? (
                   <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-3">
                     <div className="min-w-0 rounded-xl bg-zinc-50 p-3">
-                      <div className="text-[10px] font-medium text-zinc-400">동기화된 기존 글</div>
-                      <div className="mt-1 text-lg font-semibold text-zinc-800">{siteContents.length}개</div>
+                      <div className="text-[10px] font-medium text-zinc-400">
+                        동기화된 기존 글
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-zinc-800">
+                        {siteContents.length}개
+                      </div>
                     </div>
                     <div className="min-w-0 rounded-xl bg-amber-50 p-3">
-                      <div className="text-[10px] font-medium text-amber-700">90일 재검증 힌트</div>
-                      <div className="mt-1 text-lg font-semibold text-amber-900">{siteContents.filter((item) => item.revalidationWindowDays === 90 && item.revalidationDue).length}개</div>
+                      <div className="text-[10px] font-medium text-amber-700">
+                        90일 재검증 힌트
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-amber-900">
+                        {
+                          siteContents.filter(
+                            (item) =>
+                              item.revalidationWindowDays === 90 &&
+                              item.revalidationDue,
+                          ).length
+                        }
+                        개
+                      </div>
                     </div>
                     <div className="min-w-0 rounded-xl bg-zinc-50 p-3">
-                      <div className="text-[10px] font-medium text-zinc-400">180일 재검증 힌트</div>
-                      <div className="mt-1 text-lg font-semibold text-zinc-800">{siteContents.filter((item) => item.revalidationWindowDays === 180 && item.revalidationDue).length}개</div>
+                      <div className="text-[10px] font-medium text-zinc-400">
+                        180일 재검증 힌트
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-zinc-800">
+                        {
+                          siteContents.filter(
+                            (item) =>
+                              item.revalidationWindowDays === 180 &&
+                              item.revalidationDue,
+                          ).length
+                        }
+                        개
+                      </div>
                     </div>
                   </div>
                 ) : null}
                 {revalidationDueContents.length ? (
                   <div className="mt-4 min-w-0 rounded-xl border border-zinc-200 p-3">
-                    <div className="text-[11px] font-semibold text-zinc-700">재검증 우선 기존 글</div>
+                    <div className="text-[11px] font-semibold text-zinc-700">
+                      재검증 우선 기존 글
+                    </div>
                     <div className="mt-2 space-y-2">
                       {revalidationDueContents.map((item) => (
-                        <div key={item.id} className="flex min-w-0 items-start justify-between gap-3 text-[11px] leading-5">
-                          <a href={item.url} target="_blank" rel="noreferrer" className="min-w-0 break-words text-zinc-600 hover:text-zinc-900 [overflow-wrap:anywhere]">{item.title}</a>
-                          <span className="shrink-0 rounded-md bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">{item.revalidationWindowDays}일</span>
+                        <div
+                          key={item.id}
+                          className="flex min-w-0 items-start justify-between gap-3 text-[11px] leading-5"
+                        >
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="min-w-0 break-words text-zinc-600 hover:text-zinc-900 [overflow-wrap:anywhere]"
+                          >
+                            {item.title}
+                          </a>
+                          <span className="shrink-0 rounded-md bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                            {item.revalidationWindowDays}일
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
                 ) : null}
-                {siteContentSyncedAt ? <p className="mt-3 break-words text-[11px] leading-5 text-zinc-400">마지막 동기화 {formatDate(siteContentSyncedAt)} · 신규 글을 무조건 막는 기준이 아니라 기존 글 업데이트/통합 여부를 ChatGPT Pro가 판단하는 편집 맥락으로 사용합니다.</p> : null}
+                {siteContentSyncedAt ? (
+                  <p className="mt-3 break-words text-[11px] leading-5 text-zinc-400">
+                    마지막 동기화 {formatDate(siteContentSyncedAt)} · 신규 글을
+                    무조건 막는 기준이 아니라 기존 글 업데이트/통합 여부를
+                    ChatGPT Pro가 판단하는 편집 맥락으로 사용합니다.
+                  </p>
+                ) : null}
               </section>
 
               <section>
                 <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-                  <SectionTitle eyebrow="Research Inbox" title="수집된 신호" description="관련된 신호들을 선택해 하나의 ‘문제 클러스터’로 묶으세요. 한 키워드당 한 글을 만들지 않습니다." />
+                  <SectionTitle
+                    eyebrow="Research Inbox"
+                    title="수집된 신호"
+                    description="관련된 신호들을 선택해 하나의 ‘문제 클러스터’로 묶으세요. 한 키워드당 한 글을 만들지 않습니다."
+                  />
                   <div className="mb-5 flex gap-2">
-                    {selectedSignalIds.length ? <Badge tone="blue">{selectedSignalIds.length}개 선택</Badge> : null}
-                    <button type="button" onClick={createCandidateFromSelection} className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-medium text-white hover:bg-zinc-800"><LayersIcon className="h-4 w-4" /> 후보로 묶기</button>
+                    {selectedSignalIds.length ? (
+                      <Badge tone="blue">
+                        {selectedSignalIds.length}개 선택
+                      </Badge>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={createCandidateFromSelection}
+                      className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-medium text-white hover:bg-zinc-800"
+                    >
+                      <LayersIcon className="h-4 w-4" /> 후보로 묶기
+                    </button>
                   </div>
                 </div>
                 {signals.length ? (
@@ -1964,12 +2937,31 @@ export function ResearchWorkbench() {
                         signal={signal}
                         selected={selectedSignalIds.includes(signal.id)}
                         onToggle={() => toggleSignal(signal.id)}
-                        onDelete={() => { setSignals((current) => current.filter((item) => item.id !== signal.id)); setSelectedSignalIds((current) => current.filter((id) => id !== signal.id)); }}
+                        onDelete={() => {
+                          setSignals((current) =>
+                            current.filter((item) => item.id !== signal.id),
+                          );
+                          setSelectedSignalIds((current) =>
+                            current.filter((id) => id !== signal.id),
+                          );
+                        }}
                       />
                     ))}
                   </div>
                 ) : (
-                  <EmptyState title="아직 수집한 신호가 없습니다" description="네이버 검색, Google Trends 메모, Search Console CSV, 공식 문서 중 하나부터 추가해보세요." action={<button type="button" onClick={loadSample} className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-600">샘플 흐름 보기</button>} />
+                  <EmptyState
+                    title="아직 수집한 신호가 없습니다"
+                    description="네이버 검색, Google Trends 메모, Search Console CSV, 공식 문서 중 하나부터 추가해보세요."
+                    action={
+                      <button
+                        type="button"
+                        onClick={loadSample}
+                        className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-600"
+                      >
+                        샘플 흐름 보기
+                      </button>
+                    }
+                  />
                 )}
               </section>
             </div>
@@ -1980,15 +2972,36 @@ export function ResearchWorkbench() {
               <section>
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Topic Queue</div>
-                    <h2 className="mt-1 text-xl font-semibold tracking-[-0.02em]">주제 후보</h2>
-                    <p className="mt-1 text-[11px] text-zinc-400">자동 조사 후보는 ChatGPT Pro에서 direct-test 또는 research-verification으로 선정된 것만 표시합니다. 직접 테스트형은 실제 결과가 입력될 때까지 후보를 유지합니다.</p>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                      Topic Queue
+                    </div>
+                    <h2 className="mt-1 text-xl font-semibold tracking-[-0.02em]">
+                      주제 후보
+                    </h2>
+                    <p className="mt-1 text-[11px] text-zinc-400">
+                      자동 조사 후보는 ChatGPT Pro에서 direct-test 또는
+                      research-verification으로 선정된 것만 표시합니다. 직접
+                      테스트형은 실제 결과가 입력될 때까지 후보를 유지합니다.
+                    </p>
                   </div>
                 </div>
                 <div className="space-y-3">
-                  {visibleCandidates.length ? visibleCandidates.map((candidate) => (
-                    <CandidateCard key={candidate.id} candidate={candidate} active={activeCandidateId === candidate.id} onOpen={() => void copyCandidatePrompt(candidate)} onDelete={() => deleteCandidate(candidate.id)} />
-                  )) : <EmptyState title="표시할 제작 후보가 없습니다" description="탐색 탭에서 NAVER 데이터를 수집한 뒤 ChatGPT Pro 심사 JSON을 붙여넣고 선정 후보를 불러오세요. hold/exclude 후보는 표시하지 않습니다." />}
+                  {visibleCandidates.length ? (
+                    visibleCandidates.map((candidate) => (
+                      <CandidateCard
+                        key={candidate.id}
+                        candidate={candidate}
+                        active={activeCandidateId === candidate.id}
+                        onOpen={() => void copyCandidatePrompt(candidate)}
+                        onDelete={() => deleteCandidate(candidate.id)}
+                      />
+                    ))
+                  ) : (
+                    <EmptyState
+                      title="표시할 제작 후보가 없습니다"
+                      description="탐색 탭에서 NAVER 데이터를 수집한 뒤 ChatGPT Pro 심사 JSON을 붙여넣고 선정 후보를 불러오세요. hold/exclude 후보는 표시하지 않습니다."
+                    />
+                  )}
                 </div>
               </section>
 
@@ -1997,13 +3010,26 @@ export function ResearchWorkbench() {
                   <CandidateEditor
                     candidate={activeCandidate}
                     signals={signals}
-                    onChange={(patch) => updateCandidate(activeCandidate.id, patch)}
-                    onScore={(key, value) => updateScore(activeCandidate.id, key, value)}
-                    onPenalty={(key, value) => updatePenalty(activeCandidate.id, key, value)}
-                    onCopyPrompt={() => void copyCandidatePrompt(activeCandidate)}
+                    onChange={(patch) =>
+                      updateCandidate(activeCandidate.id, patch)
+                    }
+                    onScore={(key, value) =>
+                      updateScore(activeCandidate.id, key, value)
+                    }
+                    onPenalty={(key, value) =>
+                      updatePenalty(activeCandidate.id, key, value)
+                    }
+                    onCopyPrompt={() =>
+                      void copyCandidatePrompt(activeCandidate)
+                    }
                   />
                 ) : (
-                  <div className="sticky top-20"><EmptyState title="검토할 후보를 선택하세요" description="왼쪽 목록에서 후보를 선택하면 ChatGPT Pro 심사 근거, 연결된 실제 질문, 고유 결과물과 테스트·검증 계획을 확인할 수 있습니다." /></div>
+                  <div className="sticky top-20">
+                    <EmptyState
+                      title="검토할 후보를 선택하세요"
+                      description="왼쪽 목록에서 후보를 선택하면 ChatGPT Pro 심사 근거, 연결된 실제 질문, 고유 결과물과 테스트·검증 계획을 확인할 수 있습니다."
+                    />
+                  </div>
                 )}
               </section>
             </div>
@@ -2012,16 +3038,43 @@ export function ResearchWorkbench() {
           {tab === "prompt" ? (
             <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
               <section>
-                <SectionTitle eyebrow="Final Gate" title="ChatGPT Pro 심사 후 최종 작성 후보" description="NAVER 6개 API Evidence Bundle을 ChatGPT Pro가 비교해 선정한 후보만 사용합니다. 직접 테스트형은 실제 증거가 입력된 뒤에만 최종 글 프롬프트로 전환합니다." />
+                <SectionTitle
+                  eyebrow="Final Gate"
+                  title="ChatGPT Pro 심사 후 최종 작성 후보"
+                  description="NAVER 6개 API Evidence Bundle을 ChatGPT Pro가 비교해 선정한 후보만 사용합니다. 직접 테스트형은 실제 증거가 입력된 뒤에만 최종 글 프롬프트로 전환합니다."
+                />
                 <div className="space-y-2">
-                  {visibleCandidates.length ? visibleCandidates.map((candidate) => (
-                    <button key={candidate.id} type="button" onClick={() => void copyCandidatePrompt(candidate)} className={classNames("w-full rounded-2xl border p-4 text-left transition", activeCandidateId === candidate.id ? "border-zinc-900 bg-white" : "border-zinc-200 bg-white hover:border-zinc-300")}> 
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="line-clamp-2 text-sm font-medium text-zinc-800">{candidate.title || "제목 없는 후보"}</span>
-                        <span className="text-xs font-semibold text-zinc-500">{candidate.aiReview ? `유입 ${reviewLevelLabel(candidate.aiReview.trafficPotential)}` : `${scoreCandidate(candidate)}점`}</span>
-                      </div>
-                    </button>
-                  )) : <EmptyState title="표시할 제작 후보가 없습니다" description="ChatGPT Pro 심사에서 선정된 후보를 먼저 불러오세요. 이미 최종 프롬프트를 복사한 후보는 목록에서 숨깁니다." />}
+                  {visibleCandidates.length ? (
+                    visibleCandidates.map((candidate) => (
+                      <button
+                        key={candidate.id}
+                        type="button"
+                        onClick={() => void copyCandidatePrompt(candidate)}
+                        className={classNames(
+                          "w-full rounded-2xl border p-4 text-left transition",
+                          activeCandidateId === candidate.id
+                            ? "border-zinc-900 bg-white"
+                            : "border-zinc-200 bg-white hover:border-zinc-300",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="line-clamp-2 text-sm font-medium text-zinc-800">
+                            {candidate.title || "제목 없는 후보"}
+                          </span>
+                          <span className="text-xs font-semibold text-zinc-500">
+                            {candidate.aiReview
+                              ? `유입 ${reviewLevelLabel(candidate.aiReview.trafficPotential)}`
+                              : `${scoreCandidate(candidate)}점`}
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <EmptyState
+                      title="표시할 제작 후보가 없습니다"
+                      description="ChatGPT Pro 심사에서 선정된 후보를 먼저 불러오세요. 이미 최종 프롬프트를 복사한 후보는 목록에서 숨깁니다."
+                    />
+                  )}
                 </div>
               </section>
 
@@ -2031,22 +3084,68 @@ export function ResearchWorkbench() {
                     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="mb-2 flex items-center gap-2">
-                          {activeCandidate.aiReview ? <Badge tone="good">ChatGPT Pro 선정</Badge> : <Badge tone={verdict(scoreCandidate(activeCandidate)).tone}>{verdict(scoreCandidate(activeCandidate)).label}</Badge>}
-                          <Badge>{activeCandidate.aiReview ? `유입 ${reviewLevelLabel(activeCandidate.aiReview.trafficPotential)}` : `${scoreCandidate(activeCandidate)}점`}</Badge>
+                          {activeCandidate.aiReview ? (
+                            <Badge tone="good">ChatGPT Pro 선정</Badge>
+                          ) : (
+                            <Badge
+                              tone={
+                                verdict(scoreCandidate(activeCandidate)).tone
+                              }
+                            >
+                              {verdict(scoreCandidate(activeCandidate)).label}
+                            </Badge>
+                          )}
+                          <Badge>
+                            {activeCandidate.aiReview
+                              ? `유입 ${reviewLevelLabel(activeCandidate.aiReview.trafficPotential)}`
+                              : `${scoreCandidate(activeCandidate)}점`}
+                          </Badge>
                         </div>
-                        <h2 className="text-xl font-semibold tracking-[-0.02em]">{needsDirectTest(activeCandidate) ? `${activeCandidate.experimentPlan?.durationDays || 3}일 테스트 계획 프롬프트` : "ChatGPT 최종 작성 프롬프트"}</h2>
-                        <p className="mt-1 text-sm leading-6 text-zinc-500">{needsDirectTest(activeCandidate) ? "실제 결과를 만들기 전에는 원고를 쓰지 않습니다. 안전한 테스트 범위와 기록 항목만 설계하고 후보를 유지합니다." : "직접 테스트 증거 또는 조사·검증 근거가 준비된 후보만 최종 원고로 넘깁니다. 저가치·대량생산형 패턴을 피하도록 최종 게이트를 적용합니다."}</p>
+                        <h2 className="text-xl font-semibold tracking-[-0.02em]">
+                          {needsDirectTest(activeCandidate)
+                            ? `${activeCandidate.experimentPlan?.durationDays || 3}일 테스트 계획 프롬프트`
+                            : "ChatGPT 최종 작성 프롬프트"}
+                        </h2>
+                        <p className="mt-1 text-sm leading-6 text-zinc-500">
+                          {needsDirectTest(activeCandidate)
+                            ? "실제 결과를 만들기 전에는 원고를 쓰지 않습니다. 안전한 테스트 범위와 기록 항목만 설계하고 후보를 유지합니다."
+                            : "직접 테스트 증거 또는 조사·검증 근거가 준비된 후보만 최종 원고로 넘깁니다. 저가치·대량생산형 패턴을 피하도록 최종 게이트를 적용합니다."}
+                        </p>
                       </div>
-                      <button type="button" onClick={() => void copyPrompt()} className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-medium text-white hover:bg-zinc-800">{promptCopied ? <CheckIcon className="h-4 w-4" /> : <CopyIcon className="h-4 w-4" />} {promptCopied ? "복사됨" : needsDirectTest(activeCandidate) ? "테스트 계획 복사" : "최종 글 프롬프트 복사"}</button>
+                      <button
+                        type="button"
+                        onClick={() => void copyPrompt()}
+                        className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs font-medium text-white hover:bg-zinc-800"
+                      >
+                        {promptCopied ? (
+                          <CheckIcon className="h-4 w-4" />
+                        ) : (
+                          <CopyIcon className="h-4 w-4" />
+                        )}{" "}
+                        {promptCopied
+                          ? "복사됨"
+                          : needsDirectTest(activeCandidate)
+                            ? "테스트 계획 복사"
+                            : "최종 글 프롬프트 복사"}
+                      </button>
                     </div>
-                    {!activeCandidate.aiReview && scoreCandidate(activeCandidate) < 60 ? (
+                    {!activeCandidate.aiReview &&
+                    scoreCandidate(activeCandidate) < 60 ? (
                       <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-700">
-                        수동 후보의 보조 점수가 낮습니다. 공식 근거와 고유 결과물을 확보하지 못하면 글을 작성하지 않고 보류하세요.
+                        수동 후보의 보조 점수가 낮습니다. 공식 근거와 고유
+                        결과물을 확보하지 못하면 글을 작성하지 않고 보류하세요.
                       </div>
                     ) : null}
-                    <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap rounded-2xl bg-zinc-950 p-5 text-xs leading-6 text-zinc-200 scrollbar-thin">{activePrompt}</pre>
+                    <pre className="max-h-[720px] overflow-auto whitespace-pre-wrap rounded-2xl bg-zinc-950 p-5 text-xs leading-6 text-zinc-200 scrollbar-thin">
+                      {activePrompt}
+                    </pre>
                   </div>
-                ) : <EmptyState title="프롬프트를 만들 후보를 선택하세요" description="왼쪽에서 주제 후보를 선택하면 지금까지 연결한 조사 신호와 평가 내용을 반영한 프롬프트가 만들어집니다." />}
+                ) : (
+                  <EmptyState
+                    title="프롬프트를 만들 후보를 선택하세요"
+                    description="왼쪽에서 주제 후보를 선택하면 지금까지 연결한 조사 신호와 평가 내용을 반영한 프롬프트가 만들어집니다."
+                  />
+                )}
               </section>
             </div>
           ) : null}
@@ -2073,9 +3172,15 @@ function CandidateEditor({
 }) {
   const score = scoreCandidate(candidate);
   const result = verdict(score);
-  const linkedSignals = signals.filter((signal) => candidate.sourceSignalIds.includes(signal.id));
-  const questionSignals = linkedSignals.filter((signal) => signal.kind === "naver-kin");
-  const activePenalties = PENALTY_FIELDS.filter((field) => candidate.penalties[field.key]);
+  const linkedSignals = signals.filter((signal) =>
+    candidate.sourceSignalIds.includes(signal.id),
+  );
+  const questionSignals = linkedSignals.filter(
+    (signal) => signal.kind === "naver-kin",
+  );
+  const activePenalties = PENALTY_FIELDS.filter(
+    (field) => candidate.penalties[field.key],
+  );
 
   return (
     <div className="space-y-5">
@@ -2083,46 +3188,98 @@ function CandidateEditor({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap gap-2">
-              {candidate.aiReview ? <Badge tone="good">ChatGPT Pro 심사 선정</Badge> : <Badge tone={result.tone}>{result.label}</Badge>}
-              <Badge>{candidate.experimentPlan?.recommended ? `직접 테스트 추천 · ${candidate.experimentPlan.durationDays}일` : `${CONTENT_MODE_LABELS[candidate.contentMode]}${candidate.aiReview ? " · ChatGPT Pro 판단" : ""}`}</Badge>
+              {candidate.aiReview ? (
+                <Badge tone="good">ChatGPT Pro 심사 선정</Badge>
+              ) : (
+                <Badge tone={result.tone}>{result.label}</Badge>
+              )}
+              <Badge>
+                {candidate.experimentPlan?.recommended
+                  ? `직접 테스트 추천 · ${candidate.experimentPlan.durationDays}일`
+                  : `${CONTENT_MODE_LABELS[candidate.contentMode]}${candidate.aiReview ? " · ChatGPT Pro 판단" : ""}`}
+              </Badge>
             </div>
-            <h2 className="text-2xl font-semibold tracking-[-0.04em] text-zinc-900">{candidate.title || "제목 없는 후보"}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">{candidate.problem || "자동 탐색 신호를 바탕으로 해결하려는 문제를 다시 판단합니다."}</p>
+            <h2 className="text-2xl font-semibold tracking-[-0.04em] text-zinc-900">
+              {candidate.title || "제목 없는 후보"}
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
+              {candidate.problem ||
+                "자동 탐색 신호를 바탕으로 해결하려는 문제를 다시 판단합니다."}
+            </p>
           </div>
           {candidate.aiReview ? (
             <div className="rounded-2xl bg-zinc-50 px-4 py-3 text-right">
-              <div className="text-sm font-semibold text-zinc-800">유입 {reviewLevelLabel(candidate.aiReview.trafficPotential)}</div>
-              <div className="mt-1 text-[10px] text-zinc-400">ChatGPT Pro 주제 심사</div>
+              <div className="text-sm font-semibold text-zinc-800">
+                유입 {reviewLevelLabel(candidate.aiReview.trafficPotential)}
+              </div>
+              <div className="mt-1 text-[10px] text-zinc-400">
+                ChatGPT Pro 주제 심사
+              </div>
             </div>
-          ) : <ScoreRing score={score} />}
+          ) : (
+            <ScoreRing score={score} />
+          )}
         </div>
 
         {candidate.aiReview ? (
           <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
             <div className="flex flex-wrap gap-2">
-              <Badge tone="good">반복 수요 {reviewLevelLabel(candidate.aiReview.repeatedDemand)}</Badge>
-              <Badge tone="blue">근거 {reviewLevelLabel(candidate.aiReview.evidenceQuality)}</Badge>
-              <Badge tone="warn">포화도 {reviewLevelLabel(candidate.aiReview.contentSaturation)}</Badge>
-              <Badge tone="good">고유성 {reviewLevelLabel(candidate.aiReview.originalityPotential)}</Badge>
+              <Badge tone="good">
+                반복 수요 {reviewLevelLabel(candidate.aiReview.repeatedDemand)}
+              </Badge>
+              <Badge tone="blue">
+                근거 {reviewLevelLabel(candidate.aiReview.evidenceQuality)}
+              </Badge>
+              <Badge tone="warn">
+                포화도 {reviewLevelLabel(candidate.aiReview.contentSaturation)}
+              </Badge>
+              <Badge tone="good">
+                고유성{" "}
+                {reviewLevelLabel(candidate.aiReview.originalityPotential)}
+              </Badge>
               <Badge>{candidate.aiReview.category}</Badge>
             </div>
-            <p className="mt-3 text-xs leading-5 text-zinc-600">{candidate.aiReview.rationale}</p>
-            <p className="mt-2 text-[11px] leading-5 text-zinc-500"><span className="font-semibold text-zinc-600">검색 의도:</span> {candidate.aiReview.searchIntent}</p>
+            <p className="mt-3 text-xs leading-5 text-zinc-600">
+              {candidate.aiReview.rationale}
+            </p>
+            <p className="mt-2 text-[11px] leading-5 text-zinc-500">
+              <span className="font-semibold text-zinc-600">검색 의도:</span>{" "}
+              {candidate.aiReview.searchIntent}
+            </p>
           </div>
         ) : null}
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <div className="rounded-2xl bg-zinc-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">대상 독자</div>
-            <p className="mt-2 text-xs leading-5 text-zinc-600">{candidate.audience || "ChatGPT가 문제와 검색 의도를 보고 자동 결정"}</p>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              대상 독자
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-600">
+              {candidate.audience ||
+                "ChatGPT가 문제와 검색 의도를 보고 자동 결정"}
+            </p>
           </div>
           <div className="rounded-2xl bg-zinc-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">사이트 방향</div>
-            <p className="mt-2 text-xs leading-5 text-zinc-600">{candidate.siteTheme || "생활 문제 해결 기록소 · 디지털 생활 도구"}</p>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              사이트 방향
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-600">
+              {candidate.siteTheme ||
+                "생활 문제 해결 기록소 · 디지털 생활 도구"}
+            </p>
           </div>
           <div className="rounded-2xl bg-zinc-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">연결 근거</div>
-            <p className="mt-2 text-xs leading-5 text-zinc-600">조사 신호 {linkedSignals.length}개 · 공식 근거 {linkedSignals.filter((signal) => signal.kind === "official").length}개</p>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              연결 근거
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-600">
+              조사 신호 {linkedSignals.length}개 · 공식 근거{" "}
+              {
+                linkedSignals.filter((signal) => signal.kind === "official")
+                  .length
+              }
+              개
+            </p>
           </div>
         </div>
 
@@ -2131,34 +3288,68 @@ function CandidateEditor({
           onClick={onCopyPrompt}
           className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800 sm:w-auto"
         >
-          <CopyIcon className="h-4 w-4" /> {needsDirectTest(candidate) ? `${candidate.experimentPlan?.durationDays || 3}일 테스트 계획 복사` : "최종 글 프롬프트 다시 복사"}
+          <CopyIcon className="h-4 w-4" />{" "}
+          {needsDirectTest(candidate)
+            ? `${candidate.experimentPlan?.durationDays || 3}일 테스트 계획 복사`
+            : "최종 글 프롬프트 다시 복사"}
         </button>
       </section>
 
       <section className="w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-zinc-200 bg-white p-5 sm:p-6">
         <SectionTitle
           eyebrow="Review Rubric"
-          title={candidate.aiReview ? "ChatGPT Pro 심사의 보조 평가값" : "수동 후보의 보조 평가값"}
-          description={candidate.aiReview ? "아래 0~5 값은 ChatGPT Pro가 JSON으로 함께 반환한 UI 호환용 보조값입니다. 후보 선정은 숫자 공식이 아니라 위의 심사 근거와 decision을 기준으로 이뤄졌습니다." : "수동으로 만든 후보에만 기존 점수표를 참고합니다. 자동 NAVER 조사 결과는 이제 스크립트 점수로 후보를 확정하지 않습니다."}
+          title={
+            candidate.aiReview
+              ? "ChatGPT Pro 심사의 보조 평가값"
+              : "수동 후보의 보조 평가값"
+          }
+          description={
+            candidate.aiReview
+              ? "아래 0~5 값은 ChatGPT Pro가 JSON으로 함께 반환한 UI 호환용 보조값입니다. 후보 선정은 숫자 공식이 아니라 위의 심사 근거와 decision을 기준으로 이뤄졌습니다."
+              : "수동으로 만든 후보에만 기존 점수표를 참고합니다. 자동 NAVER 조사 결과는 이제 스크립트 점수로 후보를 확정하지 않습니다."
+          }
         />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {SCORE_FIELDS.map((field) => (
-            <div key={field.key} className="rounded-2xl border border-zinc-200 p-4">
+            <div
+              key={field.key}
+              className="rounded-2xl border border-zinc-200 p-4"
+            >
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-zinc-700">{field.label}</div>
-                <div className="rounded-lg bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">{candidate.scoreInputs[field.key]}/5</div>
+                <div className="text-sm font-medium text-zinc-700">
+                  {field.label}
+                </div>
+                <div className="rounded-lg bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700">
+                  {candidate.scoreInputs[field.key]}/5
+                </div>
               </div>
-              <div className="mt-1 text-[11px] leading-4 text-zinc-400">{field.hint}</div>
+              <div className="mt-1 text-[11px] leading-4 text-zinc-400">
+                {field.hint}
+              </div>
             </div>
           ))}
         </div>
 
         <div className="mt-5 border-t border-zinc-100 pt-5">
-          <div className="text-xs font-semibold text-zinc-700">보조 감점 진단</div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {activePenalties.length ? activePenalties.map((field) => <Badge key={field.key} tone="bad">{field.label}</Badge>) : <Badge tone="good">감점 요인 없음</Badge>}
+          <div className="text-xs font-semibold text-zinc-700">
+            보조 감점 진단
           </div>
-          <p className="mt-2 text-[11px] leading-5 text-zinc-400">이 값은 정렬·표시를 위한 참고 정보입니다. 실제 발행 여부는 공식 근거 확인, 직접 테스트 결과, 고유 결과물의 존재를 다시 확인한 뒤 결정합니다.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {activePenalties.length ? (
+              activePenalties.map((field) => (
+                <Badge key={field.key} tone="bad">
+                  {field.label}
+                </Badge>
+              ))
+            ) : (
+              <Badge tone="good">감점 요인 없음</Badge>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-zinc-400">
+            이 값은 정렬·표시를 위한 참고 정보입니다. 실제 발행 여부는 공식 근거
+            확인, 직접 테스트 결과, 고유 결과물의 존재를 다시 확인한 뒤
+            결정합니다.
+          </p>
         </div>
       </section>
 
@@ -2171,37 +3362,79 @@ function CandidateEditor({
           />
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="rounded-2xl border border-amber-200 bg-white p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">테스트 방향</div>
-              <p className="mt-2 text-sm leading-6 text-zinc-700">{candidate.experimentPlan.plan}</p>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                테스트 방향
+              </div>
+              <p className="mt-2 text-sm leading-6 text-zinc-700">
+                {candidate.experimentPlan.plan}
+              </p>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-white p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">기록할 지표</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                기록할 지표
+              </div>
               <ul className="mt-2 space-y-1 text-sm leading-6 text-zinc-700">
-                {candidate.experimentPlan.metrics.map((metric) => <li key={metric}>• {metric}</li>)}
+                {candidate.experimentPlan.metrics.map((metric) => (
+                  <li key={metric}>• {metric}</li>
+                ))}
               </ul>
             </div>
           </div>
-          <p className="mt-3 text-xs leading-5 text-amber-800">{candidate.experimentPlan.completionRule}</p>
-          {!hasDirectTestEvidence(candidate) ? <p className="mt-2 text-xs font-medium text-amber-900">아직 실제 결과가 입력되지 않았습니다. 아래 고급 설정의 ‘직접 확보한 증거’에 테스트 결과를 붙여 넣으면 최종 글 프롬프트로 전환됩니다.</p> : <p className="mt-2 text-xs font-medium text-emerald-700">직접 증거가 입력되어 최종 글 작성 단계로 전환할 수 있습니다.</p>}
+          <p className="mt-3 text-xs leading-5 text-amber-800">
+            {candidate.experimentPlan.completionRule}
+          </p>
+          {!hasDirectTestEvidence(candidate) ? (
+            <p className="mt-2 text-xs font-medium text-amber-900">
+              아직 실제 결과가 입력되지 않았습니다. 아래 고급 설정의 ‘직접
+              확보한 증거’에 테스트 결과를 붙여 넣으면 최종 글 프롬프트로
+              전환됩니다.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs font-medium text-emerald-700">
+              직접 증거가 입력되어 최종 글 작성 단계로 전환할 수 있습니다.
+            </p>
+          )}
         </section>
       ) : null}
 
       <section className="w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-zinc-200 bg-white p-5 sm:p-6">
-        <SectionTitle eyebrow="Original Value" title={candidate.aiReview ? "ChatGPT Pro가 선정 단계에서 설계한 고유 결과물" : "고유 결과물과 검증 방식"} description="일반적인 SEO 글이 아니라 비교표·판단 흐름·체크리스트·공식자료 대조처럼 실제 추가 가치를 만드는 방향인지 최종 글 작성 전 다시 확인합니다." />
+        <SectionTitle
+          eyebrow="Original Value"
+          title={
+            candidate.aiReview
+              ? "ChatGPT Pro가 선정 단계에서 설계한 고유 결과물"
+              : "고유 결과물과 검증 방식"
+          }
+          description="일반적인 SEO 글이 아니라 비교표·판단 흐름·체크리스트·공식자료 대조처럼 실제 추가 가치를 만드는 방향인지 최종 글 작성 전 다시 확인합니다."
+        />
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-2xl bg-zinc-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">고유 결과물</div>
-            <p className="mt-2 text-sm leading-6 text-zinc-700">{candidate.uniqueOutput || "ChatGPT가 조사 결과를 보고 가장 강한 고유 결과물을 직접 결정"}</p>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              고유 결과물
+            </div>
+            <p className="mt-2 text-sm leading-6 text-zinc-700">
+              {candidate.uniqueOutput ||
+                "ChatGPT가 조사 결과를 보고 가장 강한 고유 결과물을 직접 결정"}
+            </p>
           </div>
           <div className="rounded-2xl bg-zinc-50 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">검증 계획</div>
-            <p className="mt-2 text-sm leading-6 text-zinc-700">{candidate.verificationPlan || "공식 원문을 우선 확인하고 공개 사례는 문제 발견 용도로만 사용"}</p>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              검증 계획
+            </div>
+            <p className="mt-2 text-sm leading-6 text-zinc-700">
+              {candidate.verificationPlan ||
+                "공식 원문을 우선 확인하고 공개 사례는 문제 발견 용도로만 사용"}
+            </p>
           </div>
         </div>
         {candidate.directEvidence ? (
           <div className="mt-3 rounded-2xl border border-zinc-200 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">직접 확보한 증거</div>
-            <p className="mt-2 text-sm leading-6 text-zinc-700">{candidate.directEvidence}</p>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              직접 확보한 증거
+            </div>
+            <p className="mt-2 text-sm leading-6 text-zinc-700">
+              {candidate.directEvidence}
+            </p>
           </div>
         ) : null}
       </section>
@@ -2215,9 +3448,16 @@ function CandidateEditor({
         {questionSignals.length ? (
           <div className="grid gap-2 md:grid-cols-2">
             {questionSignals.map((signal) => (
-              <article key={signal.id} className="rounded-xl border border-zinc-200 p-3">
+              <article
+                key={signal.id}
+                className="rounded-xl border border-zinc-200 p-3"
+              >
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge tone={signal.kind === "naver-kin" ? "blue" : "neutral"}>{SIGNAL_LABELS[signal.kind]}</Badge>
+                  <Badge
+                    tone={signal.kind === "naver-kin" ? "blue" : "neutral"}
+                  >
+                    {SIGNAL_LABELS[signal.kind]}
+                  </Badge>
                   {signal.url ? (
                     <a
                       href={signal.url}
@@ -2225,107 +3465,250 @@ function CandidateEditor({
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-[11px] font-medium text-zinc-500 hover:text-zinc-900"
                     >
-                      {signal.kind === "naver-kin" ? "질문 원문 열기" : signal.kind === "naver-cafe" ? "게시글 원문 열기" : "원문 열기"}
+                      {signal.kind === "naver-kin"
+                        ? "질문 원문 열기"
+                        : signal.kind === "naver-cafe"
+                          ? "게시글 원문 열기"
+                          : "원문 열기"}
                       <ExternalIcon className="h-3 w-3" />
                     </a>
                   ) : null}
                 </div>
-                <p className="text-xs font-medium leading-5 text-zinc-700">{signal.title}</p>
-                {signal.snippet ? <p className="mt-1 line-clamp-3 text-[11px] leading-5 text-zinc-500">{signal.snippet}</p> : null}
+                <p className="text-xs font-medium leading-5 text-zinc-700">
+                  {signal.title}
+                </p>
+                {signal.snippet ? (
+                  <p className="mt-1 line-clamp-3 text-[11px] leading-5 text-zinc-500">
+                    {signal.snippet}
+                  </p>
+                ) : null}
               </article>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-zinc-400">연결된 실제 질문 출처가 없습니다. 자동 탐색을 다시 실행해 실제 질문 기반 후보를 우선 사용하는 것을 권장합니다.</p>
+          <p className="text-sm text-zinc-400">
+            연결된 실제 질문 출처가 없습니다. 자동 탐색을 다시 실행해 실제 질문
+            기반 후보를 우선 사용하는 것을 권장합니다.
+          </p>
         )}
       </section>
 
       <section className="w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-zinc-200 bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <SectionTitle eyebrow="Evidence Set" title={`연결된 조사 신호 ${linkedSignals.length}개`} description="사용자가 별도로 고를 필요는 없습니다. 자동 탐색이 연결한 신호를 ChatGPT가 참고하고, 부족한 근거는 웹 검색으로 추가 확인하도록 프롬프트에 포함합니다." />
+          <SectionTitle
+            eyebrow="Evidence Set"
+            title={`연결된 조사 신호 ${linkedSignals.length}개`}
+            description="사용자가 별도로 고를 필요는 없습니다. 자동 탐색이 연결한 신호를 ChatGPT가 참고하고, 부족한 근거는 웹 검색으로 추가 확인하도록 프롬프트에 포함합니다."
+          />
         </div>
         {linkedSignals.length ? (
           <div className="grid gap-2 md:grid-cols-2">
             {linkedSignals.map((signal) => (
-              <div key={signal.id} className="rounded-xl border border-zinc-200 p-3">
+              <div
+                key={signal.id}
+                className="rounded-xl border border-zinc-200 p-3"
+              >
                 <div className="mb-1 flex flex-wrap items-center gap-2">
                   <Badge>{SIGNAL_LABELS[signal.kind]}</Badge>
                   {signal.url ? (
-                    <a href={signal.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-900">
+                    <a
+                      href={signal.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-900"
+                    >
                       원문 <ExternalIcon className="h-3 w-3" />
                     </a>
                   ) : null}
                 </div>
-                <div className="text-xs font-medium leading-5 text-zinc-700">{signal.title}</div>
+                <div className="text-xs font-medium leading-5 text-zinc-700">
+                  {signal.title}
+                </div>
               </div>
             ))}
           </div>
-        ) : <p className="text-sm text-zinc-400">연결된 신호가 없습니다. 자동 탐색을 먼저 실행하는 것을 권장합니다.</p>}
+        ) : (
+          <p className="text-sm text-zinc-400">
+            연결된 신호가 없습니다. 자동 탐색을 먼저 실행하는 것을 권장합니다.
+          </p>
+        )}
       </section>
 
       <details className="w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-zinc-200 bg-white p-5 sm:p-6">
-        <summary className="cursor-pointer list-none text-sm font-semibold text-zinc-700">고급 설정 · 심사 결과를 직접 수정할 때만 열기</summary>
-        <p className="mt-2 text-xs leading-5 text-zinc-400">일반 사용에서는 건드리지 않아도 됩니다. 자동 평가가 명백히 잘못된 경우에만 보정하세요.</p>
+        <summary className="cursor-pointer list-none text-sm font-semibold text-zinc-700">
+          고급 설정 · 심사 결과를 직접 수정할 때만 열기
+        </summary>
+        <p className="mt-2 text-xs leading-5 text-zinc-400">
+          일반 사용에서는 건드리지 않아도 됩니다. 자동 평가가 명백히 잘못된
+          경우에만 보정하세요.
+        </p>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">주제 제목</span>
-            <input value={candidate.title} onChange={(event) => onChange({ title: event.target.value })} className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-zinc-400" />
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">
+              주제 제목
+            </span>
+            <input
+              value={candidate.title}
+              onChange={(event) => onChange({ title: event.target.value })}
+              className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-zinc-400"
+            />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">콘텐츠 방식</span>
-            <select value={candidate.contentMode} onChange={(event) => onChange({ contentMode: event.target.value as ContentMode })} className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-400">
-              {(Object.keys(CONTENT_MODE_LABELS) as ContentMode[]).map((mode) => <option key={mode} value={mode}>{CONTENT_MODE_LABELS[mode]}</option>)}
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">
+              콘텐츠 방식
+            </span>
+            <select
+              value={candidate.contentMode}
+              onChange={(event) =>
+                onChange({ contentMode: event.target.value as ContentMode })
+              }
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-400"
+            >
+              {(Object.keys(CONTENT_MODE_LABELS) as ContentMode[]).map(
+                (mode) => (
+                  <option key={mode} value={mode}>
+                    {CONTENT_MODE_LABELS[mode]}
+                  </option>
+                ),
+              )}
             </select>
           </label>
           <label className="block md:col-span-2">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">해결하려는 문제</span>
-            <textarea value={candidate.problem} onChange={(event) => onChange({ problem: event.target.value })} rows={2} className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400" />
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">
+              해결하려는 문제
+            </span>
+            <textarea
+              value={candidate.problem}
+              onChange={(event) => onChange({ problem: event.target.value })}
+              rows={2}
+              className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400"
+            />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">대상 독자</span>
-            <textarea value={candidate.audience} onChange={(event) => onChange({ audience: event.target.value })} rows={2} className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400" />
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">
+              대상 독자
+            </span>
+            <textarea
+              value={candidate.audience}
+              onChange={(event) => onChange({ audience: event.target.value })}
+              rows={2}
+              className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400"
+            />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">사이트 주제</span>
-            <input value={candidate.siteTheme} onChange={(event) => onChange({ siteTheme: event.target.value })} className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-zinc-400" />
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">
+              사이트 주제
+            </span>
+            <input
+              value={candidate.siteTheme}
+              onChange={(event) => onChange({ siteTheme: event.target.value })}
+              className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-zinc-400"
+            />
           </label>
           <label className="block md:col-span-2">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">고유 결과물</span>
-            <textarea value={candidate.uniqueOutput} onChange={(event) => onChange({ uniqueOutput: event.target.value })} rows={2} className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400" />
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">
+              고유 결과물
+            </span>
+            <textarea
+              value={candidate.uniqueOutput}
+              onChange={(event) =>
+                onChange({ uniqueOutput: event.target.value })
+              }
+              rows={2}
+              className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400"
+            />
           </label>
           <label className="block md:col-span-2">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">검증 계획</span>
-            <textarea value={candidate.verificationPlan} onChange={(event) => onChange({ verificationPlan: event.target.value })} rows={2} className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400" />
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">
+              검증 계획
+            </span>
+            <textarea
+              value={candidate.verificationPlan}
+              onChange={(event) =>
+                onChange({ verificationPlan: event.target.value })
+              }
+              rows={2}
+              className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400"
+            />
           </label>
           <label className="block md:col-span-2">
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">직접 확보한 증거</span>
-            <textarea value={candidate.directEvidence} onChange={(event) => onChange({ directEvidence: event.target.value })} rows={2} className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400" />
+            <span className="mb-1.5 block text-[11px] font-medium text-zinc-500">
+              직접 확보한 증거
+            </span>
+            <textarea
+              value={candidate.directEvidence}
+              onChange={(event) =>
+                onChange({ directEvidence: event.target.value })
+              }
+              rows={2}
+              className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm leading-6 outline-none focus:border-zinc-400"
+            />
           </label>
         </div>
 
         <div className="mt-6 space-y-5 border-t border-zinc-100 pt-5">
           {SCORE_FIELDS.map((field) => (
-            <div key={field.key} className="grid gap-2 sm:grid-cols-[210px_minmax(0,1fr)_34px] sm:items-center">
+            <div
+              key={field.key}
+              className="grid gap-2 sm:grid-cols-[210px_minmax(0,1fr)_34px] sm:items-center"
+            >
               <div>
-                <div className="text-sm font-medium text-zinc-700">{field.label}</div>
-                <div className="mt-0.5 text-[11px] leading-4 text-zinc-400">{field.hint}</div>
+                <div className="text-sm font-medium text-zinc-700">
+                  {field.label}
+                </div>
+                <div className="mt-0.5 text-[11px] leading-4 text-zinc-400">
+                  {field.hint}
+                </div>
               </div>
-              <input type="range" min="0" max="5" step="1" value={candidate.scoreInputs[field.key]} onChange={(event) => onScore(field.key, Number(event.target.value))} className="w-full accent-zinc-900" />
-              <div className="rounded-lg bg-zinc-100 py-1.5 text-center text-xs font-semibold text-zinc-700">{candidate.scoreInputs[field.key]}</div>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="1"
+                value={candidate.scoreInputs[field.key]}
+                onChange={(event) =>
+                  onScore(field.key, Number(event.target.value))
+                }
+                className="w-full accent-zinc-900"
+              />
+              <div className="rounded-lg bg-zinc-100 py-1.5 text-center text-xs font-semibold text-zinc-700">
+                {candidate.scoreInputs[field.key]}
+              </div>
             </div>
           ))}
         </div>
 
         <div className="mt-6 border-t border-zinc-100 pt-5">
-          <div className="mb-3 text-xs font-semibold text-zinc-700">감점 요인 직접 수정</div>
+          <div className="mb-3 text-xs font-semibold text-zinc-700">
+            감점 요인 직접 수정
+          </div>
           <div className="grid gap-2 md:grid-cols-2">
             {PENALTY_FIELDS.map((field) => (
-              <label key={field.key} className={classNames("flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition", candidate.penalties[field.key] ? "border-rose-200 bg-rose-50" : "border-zinc-200 bg-white")}>
-                <input type="checkbox" checked={candidate.penalties[field.key]} onChange={(event) => onPenalty(field.key, event.target.checked)} className="mt-0.5 h-4 w-4 accent-zinc-900" />
+              <label
+                key={field.key}
+                className={classNames(
+                  "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition",
+                  candidate.penalties[field.key]
+                    ? "border-rose-200 bg-rose-50"
+                    : "border-zinc-200 bg-white",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={candidate.penalties[field.key]}
+                  onChange={(event) =>
+                    onPenalty(field.key, event.target.checked)
+                  }
+                  className="mt-0.5 h-4 w-4 accent-zinc-900"
+                />
                 <span>
-                  <span className="block text-xs font-medium text-zinc-700">{field.label}</span>
-                  <span className="mt-0.5 block text-[11px] leading-4 text-zinc-400">{field.hint}</span>
+                  <span className="block text-xs font-medium text-zinc-700">
+                    {field.label}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-4 text-zinc-400">
+                    {field.hint}
+                  </span>
                 </span>
               </label>
             ))}
