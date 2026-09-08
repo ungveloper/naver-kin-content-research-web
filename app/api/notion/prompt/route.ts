@@ -654,6 +654,7 @@ async function createOrUpdateNotionPage(
           type: "data_source_id",
           data_source_id: dataSourceId,
         },
+        icon: { type: "emoji", emoji: "✔️" },
         properties,
       },
     })) as NotionPage | null;
