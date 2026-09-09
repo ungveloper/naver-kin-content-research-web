@@ -1,4 +1,4 @@
-import { extractKinQuestionCreatedAt } from "@/lib/kin-question-date";
+import { reconcileKinQuestion } from "@/lib/kin-question-page";
 import { NextRequest, NextResponse } from "next/server";
 import {
   autoResearchCategoryLabel,
@@ -198,33 +198,7 @@ type KinSourceQuestion = {
   questionTextVerified: boolean;
   questionTextSource: "page-body" | "meta-description";
     questionCreatedAt?: string;
-};
-
-function decodeHtmlEntities(value: string) {
-  return value
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, decimal: string) => String.fromCodePoint(Number.parseInt(decimal, 10)));
-}
-
-function metaContent(html: string, key: string) {
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const patterns = [
-    new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']*)["'][^>]*>`, "i"),
-    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${escaped}["'][^>]*>`, "i"),
-  ];
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match?.[1]) return decodeHtmlEntities(match[1]).replace(/\s+/g, " ").trim();
-  }
-  return "";
-}
-
-function normalizeKinSourceUrl(value: string) {
+};function normalizeKinSourceUrl(value: string) {
   let url: URL;
   try {
     url = new URL(value.trim());
@@ -274,223 +248,78 @@ function kinQuestionFetchUrls(value: string) {
   }
 
   return Array.from(new Set(candidates));
-}
-
-function htmlToQuestionText(value: string) {
-  return decodeHtmlEntities(
-    String(value || "")
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<br\s*\/?\s*>/gi, "\n")
-      .replace(/<\/p\s*>/gi, "\n")
-      .replace(/<[^>]+>/g, " "),
-  )
-    .replace(/[\t\r ]+/g, " ")
-    .replace(/\n\s+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function extractHtmlByClass(html: string, className: string) {
-  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const source = String(html || "");
-  const openPattern = new RegExp(
-    `<([a-z0-9]+)\\b[^>]*class=["'][^"']*\\b${escaped}\\b[^"']*["'][^>]*>`,
-    "i",
-  );
-  const openMatch = openPattern.exec(source);
-  if (!openMatch) return "";
-
-  const tagName = openMatch[1].toLowerCase();
-  const contentStart = openMatch.index + openMatch[0].length;
-  const tokenPattern = new RegExp(`<\\/?${tagName}\\b[^>]*>`, "gi");
-  tokenPattern.lastIndex = contentStart;
-  let depth = 1;
-  let token: RegExpExecArray | null;
-
-  while ((token = tokenPattern.exec(source))) {
-    const tokenText = token[0];
-    const isClosing = tokenText.startsWith("</");
-    const isSelfClosing = /\/\s*>$/.test(tokenText);
-    if (isClosing) depth -= 1;
-    else if (!isSelfClosing) depth += 1;
-    if (depth === 0) return source.slice(contentStart, token.index);
-  }
-  return "";
-}
-
-function isUsableQuestionText(value: string) {
-  const cleaned = htmlToQuestionText(value);
-  if (cleaned.length < 2) return false;
-  const lower = cleaned.toLowerCase();
-  const blocked = [
-    "네이버 지식in",
-    "지식인에서 답변",
-    "답변을 입력해주세요",
-    "메뉴 더보기",
-    "페이지를 찾을 수 없습니다",
-    "접근이 제한",
-    "서비스 이용이 제한",
-  ];
-  return !blocked.some((term) => lower.includes(term.toLowerCase()));
-}
-
-function normalizeQuestionText(value: string) {
-  return htmlToQuestionText(value)
-    .replace(/^질문\s*/i, "")
-    .replace(/\s*답변\s*\d+개[\s\S]*$/i, "")
-    .trim();
-}
-
-function findQuestionNode(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object") return null;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findQuestionNode(item);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  const object = value as Record<string, unknown>;
-  const rawType = object["@type"];
-  const types = Array.isArray(rawType) ? rawType : [rawType];
-  if (types.some((item) => String(item || "").toLowerCase() === "question")) return object;
-
-  for (const child of Object.values(object)) {
-    const found = findQuestionNode(child);
-    if (found) return found;
-  }
-  return null;
-}
-
-function extractQuestionTextFromJsonLd(html: string) {
-  const scripts = [...String(html || "").matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
-  for (const match of scripts) {
-    try {
-      const parsed = JSON.parse(decodeHtmlEntities(match[1]).trim()) as unknown;
-      const found = findQuestionNode(parsed);
-      if (!found) continue;
-      const value = String(found.text || found.description || "");
-      if (isUsableQuestionText(value)) return normalizeQuestionText(value);
-    } catch {
-      // 다음 구조화 데이터 후보를 확인합니다.
-    }
-  }
-  return "";
-}
-
-function extractKinQuestionText(html: string) {
-  const structured = extractQuestionTextFromJsonLd(html);
-  if (structured) return structured;
-
-  for (const className of ["questionDetail", "c-heading__content", "question-content"]) {
-    const extracted = htmlToQuestionText(extractHtmlByClass(html, className));
-    if (isUsableQuestionText(extracted)) return normalizeQuestionText(extracted);
-  }
-  return "";
-}
-
-function extractKinQuestionMetaDescription(html: string) {
-  for (const key of ["og:description", "twitter:description", "description"]) {
-    const value = normalizeQuestionText(metaContent(html, key));
-    if (isUsableQuestionText(value)) return value;
-  }
-  return "";
-}
-
-function extractKinQuestionTitle(html: string) {
-  const rawTitle =
-    metaContent(html, "og:title")
-    || metaContent(html, "twitter:title")
-    || decodeHtmlEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
-  return stripHtml(rawTitle)
-    .replace(/\s*[:|\-]\s*(네이버\s*)?지식iN.*$/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-async function fetchKinSourceQuestion(sourceUrl: string): Promise<KinSourceQuestion> {
+}async function fetchKinSourceQuestion(sourceUrl: string): Promise<KinSourceQuestion> {
   const url = normalizeKinSourceUrl(sourceUrl);
   const fetchUrls = kinQuestionFetchUrls(url);
   const profiles = [
     {
-      name: "mobile",
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+      name: "desktop",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
     },
     {
-      name: "desktop",
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+      name: "mobile",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
     },
   ];
 
-  let bestTitle = "";
-  let bestDescription = "";
   let lastError = "";
 
   for (const fetchUrl of fetchUrls) {
     for (const profile of profiles) {
       try {
+        const fetchedAt = new Date();
         const response = await fetch(fetchUrl, {
           headers: {
             "User-Agent": profile.userAgent,
-            Accept: "text/html,application/xhtml+xml",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.7",
             "Cache-Control": "no-cache",
             Pragma: "no-cache",
             Referer: "https://kin.naver.com/",
+            "Upgrade-Insecure-Requests": "1",
           },
           redirect: "follow",
           cache: "no-store",
         });
 
         if (!response.ok) {
-          lastError = `${profile.name} HTTP ${response.status}`;
+          lastError = `${profile.name} HTTP ${response.status} (${fetchUrl})`;
           continue;
         }
 
         const html = await response.text();
-        const title = extractKinQuestionTitle(html);
-        const description = extractKinQuestionMetaDescription(html);
-        const questionText = extractKinQuestionText(html);
 
-        if (!bestTitle && title) bestTitle = title;
-        if (!bestDescription && description) bestDescription = description;
+        // 직접 URL에는 Naver Search API의 1:1 URL lookup 값이 없으므로
+        // API 값을 억지로 만들지 않고 실제 질문 페이지 DOM/Question JSON-LD를 사용합니다.
+        const reconciled = reconcileKinQuestion({
+          html,
+          fetchedAt,
+        });
 
-        if (title && questionText) {
-          return {
-            url,
-            title,
-            description: description || undefined,
-            questionText,
-            questionTextVerified: true,
-            questionTextSource: "page-body",
-          questionCreatedAt: extractKinQuestionCreatedAt(html, new Date()) || undefined,
-          };
+        if (!reconciled.verified) {
+          lastError = `${reconciled.failureReason || "실제 질문 원문 검증 실패"} · ${profile.name} · ${fetchUrl}`;
+          continue;
         }
 
-        lastError = `본문 영역 추출 실패 (${profile.name})`;
+        return {
+          url,
+          title: reconciled.title,
+          description: reconciled.questionText,
+          questionText: reconciled.questionText,
+          questionTextVerified: true,
+          questionTextSource: "page-body",
+          questionCreatedAt: reconciled.questionCreatedAt,
+        };
       } catch (error) {
         lastError = error instanceof Error ? error.message : String(error);
       }
     }
   }
 
-  if (bestTitle && bestDescription) {
-    return {
-      url,
-      title: bestTitle,
-      description: bestDescription,
-      questionText: bestDescription,
-      questionTextVerified: false,
-      questionTextSource: "meta-description",
-    };
-  }
-
   throw new Error(
-    bestTitle
-      ? `지식iN 질문 제목은 확인했지만 질문 본문을 가져오지 못했습니다. ${lastError || ""}`.trim()
-      : `지식iN 원문을 열지 못했습니다. ${lastError || ""}`.trim(),
+    `지식iN 실제 질문 페이지에서 제목과 질문 본문을 검증하지 못했습니다. ${
+      lastError || ""
+    }`.trim(),
   );
 }
 

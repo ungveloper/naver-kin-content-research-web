@@ -1,4 +1,4 @@
-import { extractKinQuestionCreatedAt } from "./kin-question-date.mjs";
+import { inspectKinAnswerability, reconcileKinQuestion } from "./kin-question-page.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -257,30 +257,29 @@ async function hydrateKinQuestion(candidate) {
   const urls = kinQuestionFetchUrls(candidate.link);
   const fetchProfiles = [
     {
-      name: "mobile",
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+      name: "desktop",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
     },
     {
-      name: "desktop",
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+      name: "mobile",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
     },
   ];
 
   let lastError = "";
-  let bestFallback = "";
-  let bestFallbackTitle = "";
-  let bestFallbackUrl = "";
 
   for (const url of urls) {
     for (const profile of fetchProfiles) {
       try {
+        const fetchedAt = new Date();
         const response = await fetch(url, {
           headers: {
-            Accept: "text/html,application/xhtml+xml",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.5",
             "Cache-Control": "no-cache",
             Pragma: "no-cache",
             Referer: "https://kin.naver.com/",
+            "Upgrade-Insecure-Requests": "1",
             "User-Agent": profile.userAgent,
           },
           redirect: "follow",
@@ -292,30 +291,57 @@ async function hydrateKinQuestion(candidate) {
         }
 
         const html = await response.text();
-        const pageTitle = extractKinQuestionTitle(html);
-        const questionText = extractKinQuestionText(html);
 
-        if (questionText) {
-          return {
-            ...candidate,
-            link: canonicalKinQuestionUrl(candidate.link),
-            title: pageTitle || candidate.title,
-            questionText,
-            questionTextVerified: true,
-            questionTextSource: "page-body",
-        questionCreatedAt: extractKinQuestionCreatedAt(html, new Date()) || undefined,
-            questionSourceUrl: url,
-          };
+        const answerability = inspectKinAnswerability(html);
+        if (!answerability.answerable) {
+          lastError = `${answerability.reason} · ${profile.name} · ${url}`;
+          console.warn(
+            `[KIN monitor] 답변 대상에서 제외: ${canonicalKinQuestionUrl(candidate.link)} · ${answerability.reason}`,
+          );
+          continue;
         }
 
-        const metaFallback = extractKinQuestionMetaDescription(html);
-        if (!bestFallback && metaFallback) {
-          bestFallback = metaFallback;
-          bestFallbackTitle = pageTitle || candidate.title;
-          bestFallbackUrl = url;
+        const reconciled = reconcileKinQuestion({
+          apiTitle: candidate.title,
+          apiDescription: candidate.description,
+          html,
+          fetchedAt,
+        });
+
+        if (!reconciled.verified) {
+          lastError = `${reconciled.failureReason || "실제 질문 원문 검증 실패"} · ${profile.name} · ${url}`;
+          continue;
         }
 
-        lastError = `본문 영역 추출 실패 (${profile.name} · ${url})`;
+        if (
+          candidate.title
+          && reconciled.titleSource !== "naver-api"
+        ) {
+          console.warn(
+            `[KIN monitor] API title과 실제 질문 페이지가 달라 HTML/JSON-LD 값으로 교정: ${url}`,
+          );
+        }
+
+        if (
+          candidate.description
+          && !reconciled.apiQuestionAgreement
+        ) {
+          console.warn(
+            `[KIN monitor] API description과 실제 질문 본문이 달라 실제 페이지 본문으로 교정: ${url}`,
+          );
+        }
+
+        return {
+          ...candidate,
+          link: canonicalKinQuestionUrl(candidate.link),
+          title: reconciled.title,
+          description: reconciled.questionText,
+          questionText: reconciled.questionText,
+          questionTextVerified: true,
+          questionTextSource: "page-body",
+          questionCreatedAt: reconciled.questionCreatedAt,
+          questionSourceUrl: url,
+        };
       } catch (error) {
         lastError = error instanceof Error ? error.message : String(error);
       }
@@ -324,26 +350,21 @@ async function hydrateKinQuestion(candidate) {
 
   const canonicalUrl = canonicalKinQuestionUrl(candidate.link);
 
-  if (bestFallback) {
-    console.warn(`[KIN monitor] 질문 본문 DOM 추출 실패, 원문 meta description 사용: ${canonicalUrl}`);
-    return {
-      ...candidate,
-      link: canonicalUrl,
-      title: bestFallbackTitle || candidate.title,
-      questionText: bestFallback,
-      questionTextVerified: false,
-      questionTextSource: "meta-description",
-      questionSourceUrl: bestFallbackUrl || canonicalUrl,
-    };
-  }
+  console.warn(
+    `[KIN monitor] 실제 질문 페이지 대조 실패로 후보 제외: ${canonicalUrl} · ${
+      lastError || "알 수 없는 오류"
+    }`,
+  );
 
-  console.warn(`[KIN monitor] 질문 원문 확인 실패: ${canonicalUrl} · ${lastError || "알 수 없는 오류"}`);
   return {
     ...candidate,
     link: canonicalUrl,
+    title: "",
+    description: "",
     questionText: "",
     questionTextVerified: false,
     questionTextSource: "unavailable",
+    questionCreatedAt: undefined,
   };
 }
 
@@ -386,6 +407,17 @@ function extractPathPart(pathname, marker) {
 }
 
 function validateHydratedQuestion(candidate) {
+  if (
+    !candidate.questionTextVerified
+    || !String(candidate.title || "").trim()
+    || !String(candidate.questionText || "").trim()
+  ) {
+    return {
+      ok: false,
+      reason: "실제 지식iN 질문 제목·본문 대조 검증 실패",
+    };
+  }
+
   // Naver 검색 API의 description은 답변 스니펫일 수 있으므로 최종 등록 판단에는 사용하지 않습니다.
   const sourceText = `${candidate.title} ${candidate.questionText || ""}`.toLowerCase();
   const excludedBy = findExcludedGroup(sourceText);
@@ -407,191 +439,7 @@ function validateHydratedQuestion(candidate) {
 
   candidate.area = bestArea || candidate.area || candidate.seedArea || "생활 가이드";
   return { ok: true };
-}
-
-function extractKinQuestionText(html) {
-  const structured = extractQuestionTextFromJsonLd(html);
-  if (isUsableQuestionText(structured)) return normalizeQuestionText(structured);
-
-  const classCandidates = [
-    "questionDetail",
-    "c-heading__content",
-    "question-content",
-  ];
-
-  for (const className of classCandidates) {
-    const value = extractHtmlByClass(html, className);
-    const extracted = htmlToText(value);
-    if (isUsableQuestionText(extracted)) return normalizeQuestionText(extracted);
-  }
-
-  return "";
-}
-
-function extractKinQuestionMetaDescription(html) {
-  const candidates = [
-    extractMetaContent(html, "og:description"),
-    extractMetaContent(html, "twitter:description"),
-  ];
-
-  for (const value of candidates) {
-    const normalized = normalizeQuestionText(value);
-    if (isUsableQuestionText(normalized)) return normalized;
-  }
-  return "";
-}
-
-function extractQuestionTextFromJsonLd(html) {
-  const scripts = [...String(html || "").matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
-  for (const match of scripts) {
-    try {
-      const parsed = JSON.parse(decodeHtmlEntities(match[1]).trim());
-      const found = findQuestionNode(parsed);
-      if (found) {
-        const value = found.text || found.description || "";
-        if (isUsableQuestionText(value)) return value;
-      }
-    } catch {
-      // 일부 페이지의 JSON-LD가 완전한 JSON이 아닐 수 있으므로 다음 후보를 계속 확인합니다.
-    }
-  }
-  return "";
-}
-
-function findQuestionNode(value) {
-  if (!value || typeof value !== "object") return null;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findQuestionNode(item);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  const type = Array.isArray(value["@type"]) ? value["@type"] : [value["@type"]];
-  if (type.some((item) => String(item || "").toLowerCase() === "question")) return value;
-
-  for (const child of Object.values(value)) {
-    const found = findQuestionNode(child);
-    if (found) return found;
-  }
-  return null;
-}
-
-function isUsableQuestionText(value) {
-  const text = cleanText(value || "");
-  if (text.length < 2) return false;
-  const lower = text.toLowerCase();
-  const blocked = [
-    "네이버 지식in", "지식인에서 답변", "답변을 입력해주세요", "메뉴 더보기", "답변 1개", "답변 2개",
-    "페이지를 찾을 수 없습니다", "접근이 제한", "서비스 이용이 제한",
-  ];
-  return !blocked.some((term) => lower.includes(term.toLowerCase()));
-}
-
-function normalizeQuestionText(value) {
-  return htmlToText(value)
-    .replace(/^질문\s*/i, "")
-    .replace(/\s*답변\s*\d+개[\s\S]*$/i, "")
-    .trim();
-}
-
-function extractKinQuestionTitle(html) {
-  const ogTitle = extractMetaContent(html, "og:title");
-  if (ogTitle) return cleanKinTitle(htmlToText(ogTitle));
-  const titleBlock = htmlToText(extractHtmlByClass(html, "title"));
-  if (titleBlock) return cleanKinTitle(titleBlock);
-  const titleTag = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "";
-  return cleanKinTitle(htmlToText(titleTag));
-}
-
-function cleanKinTitle(value) {
-  return cleanText(value)
-    .replace(/^질문\s*/i, "")
-    .replace(/\s*[:|\-]\s*지식iN.*$/i, "")
-    .trim()
-    .slice(0, 180);
-}
-
-function extractHtmlByClass(html, className) {
-  const escaped = escapeRegExp(className);
-  const source = String(html || "");
-  const openPattern = new RegExp(
-    `<([a-z0-9]+)\\b[^>]*class=["'][^"']*\\b${escaped}\\b[^"']*["'][^>]*>`,
-    "i",
-  );
-  const openMatch = openPattern.exec(source);
-  if (!openMatch) return "";
-
-  const tagName = openMatch[1].toLowerCase();
-  const contentStart = openMatch.index + openMatch[0].length;
-  const tokenPattern = new RegExp(`<\\/?${escapeRegExp(tagName)}\\b[^>]*>`, "gi");
-  tokenPattern.lastIndex = contentStart;
-  let depth = 1;
-  let token;
-
-  while ((token = tokenPattern.exec(source))) {
-    const tokenText = token[0];
-    const isClosing = tokenText.startsWith("</");
-    const isSelfClosing = /\/\s*>$/.test(tokenText);
-    if (isClosing) depth -= 1;
-    else if (!isSelfClosing) depth += 1;
-
-    if (depth === 0) return source.slice(contentStart, token.index);
-  }
-
-  return "";
-}
-
-function extractMetaContent(html, propertyName) {
-  const escaped = escapeRegExp(propertyName);
-  const patterns = [
-    new RegExp(`<meta[^>]+property=["']${escaped}["'][^>]+content=["']([^"']*)["'][^>]*>`, "i"),
-    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']${escaped}["'][^>]*>`, "i"),
-  ];
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match?.[1]) return match[1];
-  }
-  return "";
-}
-
-function htmlToText(value) {
-  if (!value) return "";
-  return decodeHtmlEntities(
-    String(value)
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<br\s*\/?\s*>/gi, "\n")
-      .replace(/<\/p\s*>/gi, "\n")
-      .replace(/<[^>]+>/g, " "),
-  )
-    .replace(/[\t\r ]+/g, " ")
-    .replace(/\n\s+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function decodeHtmlEntities(value) {
-  const named = {
-    amp: "&",
-    lt: "<",
-    gt: ">",
-    quot: '"',
-    apos: "'",
-    nbsp: " ",
-  };
-  return String(value)
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
-    .replace(/&([a-z]+);/gi, (match, name) => named[name.toLowerCase()] ?? match);
-}
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function canonicalKinQuestionUrl(value) {
+}function canonicalKinQuestionUrl(value) {
   try {
     const url = new URL(value);
     if (!/(^|\.)kin\.naver\.com$/i.test(url.hostname)) return normalizeUrl(value);

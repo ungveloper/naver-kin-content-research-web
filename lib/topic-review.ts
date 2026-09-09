@@ -78,7 +78,7 @@ export function buildTopicReviewPrompt(
 - 제목: ${context.focusedSourceQuestion.title}
 - URL: ${context.focusedSourceQuestion.url}
 - 수집된 질문 본문: ${context.focusedSourceQuestion.questionText}
-- 본문 수집 방식: ${context.focusedSourceQuestion.questionTextVerified ? "원문 HTML 본문 영역" : "원문 meta description 대체"}
+- 본문 수집 방식: ${context.focusedSourceQuestion.questionTextVerified ? "원문 HTML 본문 영역" : "실제 지식iN 원문 대조"}
 
 [절대 원칙]
 1. 사용자가 URL을 직접 골랐다는 사실만으로 게시를 강행하지 않는다.

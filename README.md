@@ -413,3 +413,28 @@ Notion Integration이 데이터소스 스키마 변경 권한을 갖지 않은 �
 - 기존 행의 질문 작성 일시는 Update content 권한 문제 때문에 자동 backfill하지 않습니다.
 
 즉 timestamp 속성 관리 실패 때문에 지식iN 데이터 수집 자체가 중단되지 않습니다.
+
+## 지식iN API 우선 + 실제 원문 대조
+
+지식iN 데이터는 API와 HTML의 역할을 분리합니다.
+
+- Naver 지식iN 검색 API가 제공하는 title/description은 우선 후보값으로 사용합니다.
+- 실제 `kin.naver.com` 질문 페이지의 `endTitleSection`, `questionDetail`과 대조합니다.
+- API 값이 실제 질문 페이지와 일치하면 API 값을 우선 사용합니다.
+- API title이 `네이버 지식iN` 같은 서비스 공통값이거나 실제 페이지와 불일치하면 HTML/Question JSON-LD 값으로 교정합니다.
+- API description이 실제 질문 본문과 동일하면 API 값을 사용합니다.
+- API description이 말줄임/축약된 값이면 실제 `questionDetail`의 전체 질문 본문으로 확장합니다.
+- API description이 서비스 공통 문구이거나 실제 질문 본문과 불일치하면 실제 페이지 본문으로 교정합니다.
+- 질문 작성일처럼 검색 API가 제공하지 않는 값은 실제 질문 페이지의 `userInfo` 작성일에서 가져옵니다.
+- 직접 URL 입력은 Naver Search API에 URL 단건 조회 인터페이스가 없으므로 실제 질문 페이지 원문을 기준으로 검증합니다.
+- 실제 질문 페이지에서 제목과 본문을 확인하지 못하면 meta description으로 대체하지 않고 후보 제외/조사 실패 처리합니다.
+
+핵심 원칙은 API를 버리는 것이 아니라 API를 우선 사용하되 실제 질문 페이지를 진실성 검증 장치로 두는 것입니다.
+
+자동 KIN Monitor는 원문 검증 뒤 답변 가능 상태까지 확인합니다.
+
+- 채택된 답변 표시가 있으면 후보 제외
+- 답변 마감·삭제 표시가 있으면 후보 제외
+- 실제 페이지에서 `답변하기` 동작을 확인하지 못하면 보수적으로 후보 제외
+- 따라서 자동으로 Notion에 들어오는 신규 후보는 `미채택 + 현재 답변 동작 확인` 조건을 통과해야 함
+- 직접 URL Focused Research는 사용자가 직접 선택한 원문 조사 기능이므로 이 자동 답변 가능 필터를 강제하지 않음
