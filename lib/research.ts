@@ -3,6 +3,7 @@ import {
   KIN_ANSWER_READABILITY_POLICY,
   KIN_TRAFFIC_BRIDGE_POLICY,
   PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY,
+  OFFICIAL_SOURCE_ATTRIBUTION_POLICY,
 } from "@/lib/content-quality";
 import type {
   Candidate,
@@ -373,6 +374,9 @@ AI를 사용했다는 사실 자체를 감추기 위한 장식은 하지 않는�
 
 [공개 WordPress 본문과 원 질문 분리]
 ${PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY}
+
+[WordPress 공식 출처 표기]
+${OFFICIAL_SOURCE_ATTRIBUTION_POLICY}
 
 [지식iN 답변의 WordPress 참고 유입]
 ${KIN_TRAFFIC_BRIDGE_POLICY}

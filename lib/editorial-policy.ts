@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = "2026-09-08.v5";
+export const PROMPT_VERSION = "2026-09-09.v6";
 
 export const EDITORIAL_DISPOSITION_POLICY = String.raw`
 [콘텐츠 형태 판정 — 최종 원고 작성 전에 반드시 결정]

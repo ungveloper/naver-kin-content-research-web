@@ -235,6 +235,7 @@ for (const required of [
   "EDITORIAL_DISPOSITION_POLICY",
   "MULTI_PASS_FINAL_VALIDATION_POLICY",
   "FINAL_OUTPUT_POLISH_POLICY",
+  "OFFICIAL_SOURCE_ATTRIBUTION_POLICY",
   "ARTICLE_EVIDENCE_DISCIPLINE_POLICY",
   "KIN_ANSWER_READABILITY_POLICY",
   "PUBLIC_ARTICLE_SOURCE_SEPARATION_POLICY",
@@ -440,6 +441,33 @@ const researchPromptSource = readFileSync(
   "lib/research.ts",
   "utf8",
 );
+
+
+for (const required of [
+  "OFFICIAL_SOURCE_ATTRIBUTION_POLICY",
+  "네이버 지식iN 원문은 문제 발견과 검색 의도 확인용",
+  "링크 개수 목표를 정하지 않는다",
+  "공식 canonical URL",
+]) {
+  if (!contentQualitySource.includes(required)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] WordPress 공식 출처 표기 정책 누락: ${required}`,
+    );
+  }
+}
+
+for (const [sourceName, source] of [
+  ["topic-review", topicReviewSource],
+  ["research", researchPromptSource],
+]) {
+  if (!source.includes("OFFICIAL_SOURCE_ATTRIBUTION_POLICY")) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] ${sourceName}에 공식 출처 표기 정책이 연결되지 않았습니다.`,
+    );
+  }
+}
 
 for (const required of [
   "ARTICLE_EVIDENCE_DISCIPLINE_POLICY",
