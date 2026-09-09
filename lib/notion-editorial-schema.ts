@@ -1,5 +1,7 @@
 export const NOTION_EDITORIAL_TRACKING_SCHEMA = {
   "질문": { rich_text: {} },
+  "생성일시": { created_time: {} },
+  "질문 작성 일시": { date: {} },
   "프롬프트 버전": { rich_text: {} },
   "초안 유형": {
     select: {

@@ -37,6 +37,12 @@ jobs:
           NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
         run: ./node_modules/.bin/tsx scripts/ensure-notion-editorial-schema.ts
 
+
+      - name: Migrate Notion question timestamp schema
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
+        run: ./node_modules/.bin/tsx scripts/migrate-notion-question-timestamp-schema.ts
       - name: Check new Naver Knowledge iN questions
         env:
           NAVER_API_HUB_CLIENT_ID: ${{ secrets.NAVER_API_HUB_CLIENT_ID }}

@@ -15,6 +15,7 @@ type SourceQuestion = {
   questionText: string;
   questionTextVerified: boolean;
   questionTextSource: "page-body" | "meta-description";
+    questionCreatedAt?: string;
 };
 
 type SavePromptRequest = {
@@ -143,6 +144,11 @@ function resolveNotionProperties(properties: Record<string, NotionProperty>) {
       entries,
       ["질문", "질문 요약", "요약", "Summary"],
       "rich_text",
+    ),
+    questionCreatedAt: findProperty(
+      entries,
+      ["질문 작성 일시", "Question Created At"],
+      "date",
     ),
     category: findProperty(entries, ["카테고리", "Category"], "select"),
     status: findProperty(entries, ["상태", "Status"], ["select", "status"]),
@@ -636,6 +642,17 @@ async function createOrUpdateNotionPage(
     properties[resolved.question.name] = {
       rich_text: fullQuestionRichText(sourceQuestion.questionText),
     };
+  }
+
+
+  if (resolved.questionCreatedAt && sourceQuestion.questionCreatedAt) {
+
+    properties[resolved.questionCreatedAt.name] = {
+
+      date: { start: sourceQuestion.questionCreatedAt },
+
+    };
+
   }
 
   if (!page) {

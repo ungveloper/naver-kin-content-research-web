@@ -1,3 +1,4 @@
+import { extractKinQuestionCreatedAt } from "./kin-question-date.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -302,6 +303,7 @@ async function hydrateKinQuestion(candidate) {
             questionText,
             questionTextVerified: true,
             questionTextSource: "page-body",
+        questionCreatedAt: extractKinQuestionCreatedAt(html, new Date()) || undefined,
             questionSourceUrl: url,
           };
         }
@@ -760,7 +762,7 @@ function resolveNotionProperties(properties) {
   return {
     title,
     url,
-    foundAt: findProperty(entries, ["발견일시", "발견 일시", "발견일", "수집일", "Created"], "date"),
+    foundAt: findProperty(entries, ["질문 작성 일시", "발견 일시", "발견일", "수집일", "Created"], "date"),
     score: findProperty(entries, ["점수", "우선순위 점수", "Score"], "number"),
     evergreen: findProperty(entries, ["에버그린", "Evergreen"], "number"),
     demand: findProperty(entries, ["유사 질문", "독립 질문", "반복 수요"], "number"),
@@ -1078,7 +1080,11 @@ async function createNotionPage(candidate, props) {
     };
   }
 
-  return notionFetch("/v1/pages", {
+    if (props.foundAt && candidate.questionCreatedAt) {
+    properties[props.foundAt.name] = { date: { start: candidate.questionCreatedAt } };
+  }
+
+return notionFetch("/v1/pages", {
     method: "POST",
     body: {
       parent: { type: "data_source_id", data_source_id: process.env.NOTION_DATA_SOURCE_ID },

@@ -100,6 +100,7 @@ type AutoResearchResponse = {
     questionText: string;
     questionTextVerified: boolean;
     questionTextSource: "page-body" | "meta-description";
+    questionCreatedAt?: string;
   };
   errors?: string[];
   cooldown?: {

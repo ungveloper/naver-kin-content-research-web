@@ -43,6 +43,7 @@ type ReviewPromptContext = {
     questionText: string;
     questionTextVerified: boolean;
     questionTextSource: "page-body" | "meta-description";
+    questionCreatedAt?: string;
   };
 };
 

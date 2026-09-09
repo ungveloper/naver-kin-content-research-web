@@ -1,3 +1,4 @@
+import { extractKinQuestionCreatedAt } from "@/lib/kin-question-date";
 import { NextRequest, NextResponse } from "next/server";
 import {
   autoResearchCategoryLabel,
@@ -196,6 +197,7 @@ type KinSourceQuestion = {
   questionText: string;
   questionTextVerified: boolean;
   questionTextSource: "page-body" | "meta-description";
+    questionCreatedAt?: string;
 };
 
 function decodeHtmlEntities(value: string) {
@@ -463,6 +465,7 @@ async function fetchKinSourceQuestion(sourceUrl: string): Promise<KinSourceQuest
             questionText,
             questionTextVerified: true,
             questionTextSource: "page-body",
+          questionCreatedAt: extractKinQuestionCreatedAt(html, new Date()) || undefined,
           };
         }
 

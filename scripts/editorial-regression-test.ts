@@ -283,6 +283,20 @@ if (!notionSchemaSource.includes('"질문": { rich_text: {} }')) {
   console.error("[회귀 실패] Notion schema에 '질문' rich_text 속성이 없습니다.");
 }
 
+for (const required of [
+  '"생성일시": { created_time: {} }',
+  '"질문 작성 일시": { date: {} }',
+]) {
+  if (!notionSchemaSource.includes(required)) {
+    failures += 1;
+    console.error(`[회귀 실패] Notion 시간 속성 누락: ${required}`);
+  }
+}
+if (notionSchemaSource.includes('"발견일시"')) {
+  failures += 1;
+  console.error("[회귀 실패] 제거 대상 발견일시가 schema에 남아 있습니다.");
+}
+
 for (const forbidden of [
   '"게시 URL"',
   '"게시일"',
