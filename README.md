@@ -399,3 +399,17 @@ GitHub Actions용 Notion Integration이 새 페이지/블록 삽입은 가능하
 출처 목록의 개수 자체는 품질 목표가 아닙니다. 공식 자료를 단순 재서술하는 대신 조건별 판단, 비교, 실행 순서처럼 독자에게 추가 가치를 제공하는 것이 우선입니다.
 
 이 정책은 Google 검색 순위나 AdSense 승인을 보장하지 않으며, 검증 가능성과 사람 중심 콘텐츠 품질을 높이기 위한 발행 기준입니다.
+
+## Notion timestamp schema 권한 대응
+
+Notion Integration이 데이터소스 스키마 변경 권한을 갖지 않은 환경에서는 timestamp 속성 추가·삭제를 API로 강제하지 않습니다.
+
+- `Check Notion question timestamp schema`는 읽기 전용 진단 단계이며 실패해도 KIN Monitor를 중단하지 않습니다.
+- 실제 질문 원문 수집, Evidence 조사, 프롬프트 생성은 timestamp schema와 독립적으로 계속 실행합니다.
+- `질문 작성 일시` date 속성이 있으면 실제 지식iN 질문 작성 시각을 해당 속성에 저장합니다.
+- 해당 속성이 아직 없으면 기존 `발견일시` date 속성을 호환 fallback으로 사용합니다.
+- Notion UI에서는 기존 `발견일시`를 `질문 작성 일시`로 이름만 변경하면 됩니다.
+- 페이지 생성 시각은 `생성일시` Created time 속성으로 별도 표시하는 것을 권장합니다.
+- 기존 행의 질문 작성 일시는 Update content 권한 문제 때문에 자동 backfill하지 않습니다.
+
+즉 timestamp 속성 관리 실패 때문에 지식iN 데이터 수집 자체가 중단되지 않습니다.

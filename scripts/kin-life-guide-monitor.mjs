@@ -762,7 +762,7 @@ function resolveNotionProperties(properties) {
   return {
     title,
     url,
-    foundAt: findProperty(entries, ["질문 작성 일시", "발견 일시", "발견일", "수집일", "Created"], "date"),
+    foundAt: findProperty(entries, ["질문 작성 일시", "발견일시", "발견 일시", "발견일", "수집일", "Created"], "date"),
     score: findProperty(entries, ["점수", "우선순위 점수", "Score"], "number"),
     evergreen: findProperty(entries, ["에버그린", "Evergreen"], "number"),
     demand: findProperty(entries, ["유사 질문", "독립 질문", "반복 수요"], "number"),

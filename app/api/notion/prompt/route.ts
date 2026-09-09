@@ -147,7 +147,7 @@ function resolveNotionProperties(properties: Record<string, NotionProperty>) {
     ),
     questionCreatedAt: findProperty(
       entries,
-      ["질문 작성 일시", "Question Created At"],
+      ["질문 작성 일시", "발견일시", "Question Created At"],
       "date",
     ),
     category: findProperty(entries, ["카테고리", "Category"], "select"),
