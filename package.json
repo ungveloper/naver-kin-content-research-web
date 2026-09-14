@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings=0",
-    "test:regression": "tsx scripts/editorial-regression-test.ts"
+    "test:regression": "tsx scripts/editorial-regression-test.ts && node scripts/kin-self-answer-regression.mjs"
   },
   "dependencies": {
     "google-auth-library": "11.0.2",

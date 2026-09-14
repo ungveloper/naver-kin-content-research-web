@@ -1,3 +1,4 @@
+import { inspectKinAnswerability, inspectKinSelfAnswer, reconcileKinQuestion } from "./kin-question-page.mjs";
 import { inspectKinAnswerability, reconcileKinQuestion } from "./kin-question-page.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -291,6 +292,37 @@ async function hydrateKinQuestion(candidate) {
         }
 
         const html = await response.text();
+
+        const selfProfileU = String(
+          process.env.KIN_SELF_PROFILE_U || "",
+        ).trim();
+
+        if (selfProfileU) {
+          const selfAnswer = inspectKinSelfAnswer(html, {
+            profileU: selfProfileU,
+            nickname: process.env.KIN_SELF_NICKNAME,
+          });
+
+          if (selfAnswer.answered) {
+            const canonicalUrl = canonicalKinQuestionUrl(candidate.link);
+            console.warn(
+              `[KIN monitor] 이미 내가 답변한 질문이라 제외: ${canonicalUrl}`
+              + `${selfAnswer.answerNo ? ` · answerNo=${selfAnswer.answerNo}` : ""}`,
+            );
+
+            return {
+              ...candidate,
+              link: canonicalUrl,
+              title: "",
+              description: "",
+              questionText: "",
+              questionTextVerified: false,
+              questionTextSource: "unavailable",
+              questionCreatedAt: undefined,
+              skipReason: "already-answered-by-self",
+            };
+          }
+        }
 
         const answerability = inspectKinAnswerability(html);
         if (!answerability.answerable) {

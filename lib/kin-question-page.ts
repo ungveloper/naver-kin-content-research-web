@@ -566,3 +566,151 @@ export function inspectKinAnswerability(html: string): KinAnswerability {
     reason: "미채택이며 답변하기 동작을 확인한 질문",
   };
 }
+
+export type KinSelfAnswerInspection = {
+  answered: boolean;
+  matchedBy: "profile-u" | "my-answer-class" | null;
+  answerNo?: string;
+  nicknameMatched: boolean;
+  profileConfigured: boolean;
+};
+
+function normalizeKinProfileU(value: string) {
+  let normalized = decodeHtmlEntities(String(value || "")).trim();
+
+  try {
+    normalized = decodeURIComponent(normalized);
+  } catch {
+    // 이미 decode된 값이면 그대로 사용합니다.
+  }
+
+  return normalized.trim();
+}
+
+function extractHtmlElementsByClass(html: string, className: string) {
+  const source = String(html || "");
+  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const openPattern = new RegExp(
+    `<([a-z0-9]+)\\b[^>]*class=["'][^"']*\\b${escaped}\\b[^"']*["'][^>]*>`,
+    "gi",
+  );
+
+  const results: string[] = [];
+  let openMatch: RegExpExecArray | null;
+
+  while ((openMatch = openPattern.exec(source))) {
+    const tagName = openMatch[1].toLowerCase();
+    const contentStart = openMatch.index + openMatch[0].length;
+    const tokenPattern = new RegExp(`<\\/?${tagName}\\b[^>]*>`, "gi");
+    tokenPattern.lastIndex = contentStart;
+
+    let depth = 1;
+    let token: RegExpExecArray | null;
+    let end = -1;
+
+    while ((token = tokenPattern.exec(source))) {
+      if (token[0].startsWith("</")) {
+        depth -= 1;
+      } else if (!/\/\s*>$/.test(token[0])) {
+        depth += 1;
+      }
+
+      if (depth === 0) {
+        end = tokenPattern.lastIndex;
+        break;
+      }
+    }
+
+    if (end < 0) break;
+
+    results.push(source.slice(openMatch.index, end));
+    openPattern.lastIndex = end;
+  }
+
+  return results;
+}
+
+function extractProfileUsFromAnswer(answerHtml: string) {
+  const results: string[] = [];
+
+  for (const match of String(answerHtml || "").matchAll(
+    /href=["']([^"']*\/profile\/index\.naver\?[^"']*)["']/gi,
+  )) {
+    const href = decodeHtmlEntities(match[1]).replace(/&amp;/gi, "&");
+    const profileMatch = href.match(/[?&]u=([^&"']+)/i);
+    if (!profileMatch?.[1]) continue;
+
+    const normalized = normalizeKinProfileU(profileMatch[1]);
+    if (normalized) results.push(normalized);
+  }
+
+  return results;
+}
+
+function extractAnswerNickname(answerHtml: string) {
+  const match = String(answerHtml || "").match(
+    /<strong\b[^>]*class=["'][^"']*\bname\b[^"']*["'][^>]*>([\s\S]*?)<\/strong>/i,
+  );
+
+  return match?.[1] ? htmlToText(match[1]).trim() : "";
+}
+
+function extractAnswerNo(answerHtml: string) {
+  const match = String(answerHtml || "").match(/\bid=["']answer_(\d+)["']/i);
+  return match?.[1];
+}
+
+export function inspectKinSelfAnswer(
+  html: string,
+  identity: {
+    profileU?: string;
+    nickname?: string;
+  } = {},
+): KinSelfAnswerInspection {
+  const configuredProfileU = normalizeKinProfileU(identity.profileU || "");
+  const configuredNickname = String(identity.nickname || "").trim();
+  const answers = extractHtmlElementsByClass(html, "answerArea");
+
+  for (const answerHtml of answers) {
+    const answerNo = extractAnswerNo(answerHtml);
+    const nickname = extractAnswerNickname(answerHtml);
+    const nicknameMatched = Boolean(
+      configuredNickname && nickname === configuredNickname,
+    );
+
+    if (
+      /<div\b[^>]*class=["'][^"']*\b_myAnswer\b[^"']*["'][^>]*>/i.test(
+        answerHtml,
+      )
+    ) {
+      return {
+        answered: true,
+        matchedBy: "my-answer-class",
+        answerNo,
+        nicknameMatched,
+        profileConfigured: Boolean(configuredProfileU),
+      };
+    }
+
+    if (configuredProfileU) {
+      const answerProfileUs = extractProfileUsFromAnswer(answerHtml);
+
+      if (answerProfileUs.some((profileU) => profileU === configuredProfileU)) {
+        return {
+          answered: true,
+          matchedBy: "profile-u",
+          answerNo,
+          nicknameMatched,
+          profileConfigured: true,
+        };
+      }
+    }
+  }
+
+  return {
+    answered: false,
+    matchedBy: null,
+    nicknameMatched: false,
+    profileConfigured: Boolean(configuredProfileU),
+  };
+}
