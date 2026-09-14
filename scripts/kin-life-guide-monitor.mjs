@@ -1,5 +1,5 @@
 import { inspectKinAnswerability, inspectKinSelfAnswer, reconcileKinQuestion } from "./kin-question-page.mjs";
-import { inspectKinAnswerability, reconcileKinQuestion } from "./kin-question-page.mjs";
+
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -164,6 +164,7 @@ async function main() {
   }
 
   let created = 0;
+  const exactTitleSeenThisRun = new Set();
   let focusedPromptsGenerated = 0;
 
   for (const rawCandidate of clustered) {
@@ -176,6 +177,42 @@ async function main() {
       console.log(`[KIN monitor] 원문 재검증 제외: ${candidate.title} · ${validation.reason}`);
       await sleep(360);
       continue;
+    }
+
+
+    const exactTitle = String(candidate.title || "").trim();
+
+    if (!existingPage && exactTitle) {
+      if (exactTitleSeenThisRun.has(exactTitle)) {
+        console.log(
+          `[KIN monitor] 같은 실행에서 동일 제목이라 제외: ${exactTitle}`,
+        );
+        await sleep(360);
+        continue;
+      }
+
+      const titlePropertyName =
+        typeof notionProperties.title === "string"
+          ? notionProperties.title
+          : notionProperties.title?.name
+            || notionProperties.title?.key
+            || "제목";
+
+      const sameTitlePage = await findNotionPageByExactTitle(
+        exactTitle,
+        titlePropertyName,
+      );
+
+      if (sameTitlePage) {
+        console.log(
+          `[KIN monitor] Notion에 동일 제목이 이미 있어 제외: ${exactTitle}`,
+        );
+        exactTitleSeenThisRun.add(exactTitle);
+        await sleep(360);
+        continue;
+      }
+
+      exactTitleSeenThisRun.add(exactTitle);
     }
 
     if (existingPage) {
@@ -751,6 +788,43 @@ async function updatePipelineState(
   }
 }
 
+
+
+async function findNotionPageByExactTitle(title, propertyName) {
+  const exactTitle = String(title || "").trim();
+  const exactPropertyName = String(propertyName || "").trim();
+
+  if (!exactTitle || !exactPropertyName) return null;
+
+  try {
+    const result = await notionFetch(
+      `/v1/data_sources/${encodeURIComponent(process.env.NOTION_DATA_SOURCE_ID)}/query`,
+      {
+        method: "POST",
+        body: {
+          page_size: 1,
+          filter: {
+            property: exactPropertyName,
+            title: { equals: exactTitle },
+          },
+        },
+      },
+    );
+
+    const pages = Array.isArray(result?.results) ? result.results : [];
+    return pages[0] || null;
+  } catch (error) {
+    console.warn(
+      `[KIN monitor] Notion 동일 제목 조회 실패 · ${exactTitle} · ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+
+    // 동일 제목 검사는 추가 중복 안전장치입니다.
+    // 조회 실패 때문에 KIN monitor 전체를 중단하지 않습니다.
+    return null;
+  }
+}
 
 async function findNotionPageByUrl(url, propertyName) {
   const result = await notionFetch(`/v1/data_sources/${encodeURIComponent(process.env.NOTION_DATA_SOURCE_ID)}/query`, {
