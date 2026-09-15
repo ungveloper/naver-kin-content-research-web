@@ -3,6 +3,7 @@ import { inspectKinAnswerability, inspectKinSelfAnswer, reconcileKinQuestion } f
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { findContentRegistryExactMatch, isContentRegistryConfigured } from "./content-registry.mjs";
 const execFileAsync = promisify(execFile);
 
 const NAVER_BASE_URL = process.env.NAVER_API_HUB_BASE_URL || "https://naverapihub.apigw.ntruss.com";
@@ -179,6 +180,30 @@ async function main() {
       continue;
     }
 
+
+    if (!existingPage && isContentRegistryConfigured()) {
+      try {
+        const registryMatch = await findContentRegistryExactMatch({
+          title: candidate.title,
+          url: candidate.link,
+        });
+
+        if (registryMatch) {
+          console.log(
+            `[KIN monitor] Supabase 콘텐츠 레지스트리에 이미 있어 제외: `
+            + `${registryMatch.questionTitle}`
+            + `${registryMatch.wordpressUrl ? ` · ${registryMatch.wordpressUrl}` : ""}`,
+          );
+          await sleep(360);
+          continue;
+        }
+      } catch (error) {
+        console.warn(
+          `[KIN monitor] Supabase 콘텐츠 레지스트리 조회 실패 · `
+          + `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     const exactTitle = String(candidate.title || "").trim();
 

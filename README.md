@@ -450,3 +450,36 @@ Notion Integration이 데이터소스 스키마 변경 권한을 갖지 않은 �
 - 본인이 이미 답변한 질문은 실제 지식iN 답변자의 profile `u=` 비교 로직이 별도로 제외합니다.
 - 제목이 같지만 실제로는 서로 다른 질문도 제외될 수 있습니다. 이는 동일 제목 반복 조사를 보수적으로 막기 위한 운영 규칙입니다.
 - Notion 동일 제목 조회 자체가 실패하면 전체 모니터를 중단하지 않고 기존 필터를 계속 수행합니다.
+
+## Supabase 콘텐츠 중복·관계 레지스트리
+
+Notion은 사람이 읽고 검토하는 작업 공간으로 유지하고, Supabase는 자동화가 기억하는 콘텐츠 레지스트리로 사용합니다.
+
+테이블:
+- `content_articles`: WordPress 대표 글
+- `kin_questions`: 지식iN 질문
+- `question_article_relations`: 질문 ↔ 대표 글 관계 (`origin`, `reuse`, `expand`, `duplicate`)
+- `content_registry_entries`: 자동화 조회용 join view
+
+현재 자동 KIN Monitor는 Supabase가 설정되어 있으면 `docId → 원문 URL → 질문 제목 exact-match` 순서로 기존 레지스트리를 먼저 확인합니다. 일치하면 WordPress 신규 글 후보로 다시 조사하지 않습니다. 그 다음 기존 Notion 제목/URL 중복 필터와 본인 답변/답변 가능 상태 필터가 계속 작동합니다.
+
+이 단계에서는 fuzzy/embedding 판정을 자동 차단 조건으로 사용하지 않습니다. `reuse`/`expand` 관계를 저장할 스키마만 먼저 만들어두고, 데이터가 쌓인 뒤 BM25/의미 판정을 붙입니다.
+
+### 서버/Actions 환경변수
+
+- `SUPABASE_URL`: GitHub Actions Repository Variable
+- `SUPABASE_SERVICE_ROLE_KEY`: GitHub Actions Secret
+
+`SUPABASE_SERVICE_ROLE_KEY`는 서버와 GitHub Actions에서만 사용하며 브라우저 코드나 공개 저장소에 넣지 않습니다.
+
+### 초기 데이터
+
+`data/content-registry-seed-20260914.json`에 기존 발행 콘텐츠 11개가 들어 있습니다.
+
+Supabase migration 적용 후:
+
+```bash
+npm run seed:content-registry
+```
+
+를 실행하면 `kin_questions`, `content_articles`, `question_article_relations`에 idempotent upsert됩니다.
