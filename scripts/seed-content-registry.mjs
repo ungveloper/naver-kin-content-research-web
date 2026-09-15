@@ -8,7 +8,7 @@ import {
 try {
   process.loadEnvFile(".env.local");
 } catch {
-  // GitHub Actions처럼 env가 이미 주입된 경우는 그대로 진행합니다.
+  // GitHub Actions처럼 env가 이미 주입된 경우 그대로 진행합니다.
 }
 
 if (!isContentRegistryConfigured()) {
@@ -17,17 +17,32 @@ if (!isContentRegistryConfigured()) {
 }
 
 const seedUrl = new URL(
-  "../data/content-registry-seed-20260914.json",
+  "../data/content-registry-seed-20260915.json",
   import.meta.url,
 );
 
 const items = JSON.parse(await fs.readFile(seedUrl, "utf8"));
 
+let publishedCount = 0;
+let holdCount = 0;
+
 for (const item of items) {
-  await seedRegistryEntry(item);
-  console.log(`[seed] ${item.kin_doc_id} -> ${item.wordpress_url}`);
+  const result = await seedRegistryEntry(item);
+
+  if (result.status === "published") {
+    publishedCount += 1;
+    console.log(
+      `[seed:published] ${item.kin_doc_id} -> ${item.wordpress_url}`,
+    );
+  } else {
+    holdCount += 1;
+    console.log(
+      `[seed:hold] ${item.kin_doc_id} -> ${item.question_title}`,
+    );
+  }
 }
 
 console.log(
-  `[완료] Firestore 콘텐츠 레지스트리 ${items.length}개 seed 완료`,
+  `[완료] Firestore 최신 seed: 질문 ${items.length}개 `
+  + `(정상 발행 ${publishedCount}, 보류 ${holdCount})`,
 );

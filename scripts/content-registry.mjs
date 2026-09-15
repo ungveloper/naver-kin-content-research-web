@@ -121,9 +121,51 @@ export async function seedRegistryEntry(item) {
     throw new Error("Firestore 콘텐츠 레지스트리가 설정되지 않았습니다.");
   }
 
+  const status = item.status === "hold" ? "hold" : "published";
   const questionRef = db
     .collection(CONTENT_REGISTRY_COLLECTIONS.questions)
     .doc(item.kin_doc_id);
+
+  const now = FieldValue.serverTimestamp();
+  const batch = db.batch();
+
+  const questionData = {
+    kinDocId: item.kin_doc_id,
+    kinUrl: item.kin_url,
+    title: item.question_title.trim(),
+    normalizedTitle: normalizeRegistryTitle(item.question_title),
+    body: item.question_body,
+    registryStatus: status,
+    lastSeenAt: now,
+    updatedAt: now,
+  };
+
+  if (status === "hold") {
+    batch.set(
+      questionRef,
+      {
+        ...questionData,
+        relationType: "hold",
+        canonicalArticleSlug: FieldValue.delete(),
+        wordpressUrl: FieldValue.delete(),
+        articleTitle: FieldValue.delete(),
+      },
+      { merge: true },
+    );
+
+    await batch.commit();
+
+    return {
+      status,
+      questionId: item.kin_doc_id,
+    };
+  }
+
+  if (!item.wordpress_url || !item.slug) {
+    throw new Error(
+      `published seed에 wordpress_url/slug가 없습니다: ${item.kin_doc_id}`,
+    );
+  }
 
   const articleRef = db
     .collection(CONTENT_REGISTRY_COLLECTIONS.articles)
@@ -133,9 +175,6 @@ export async function seedRegistryEntry(item) {
     .collection(CONTENT_REGISTRY_COLLECTIONS.relations)
     .doc(`${item.kin_doc_id}__${item.slug}`);
 
-  const now = FieldValue.serverTimestamp();
-  const batch = db.batch();
-
   batch.set(
     articleRef,
     {
@@ -143,7 +182,7 @@ export async function seedRegistryEntry(item) {
       slug: item.slug,
       title: item.question_title,
       status: "published",
-      notes: "2026-09-15 기존 발행 콘텐츠 초기 seed",
+      notes: "2026-09-15 기존 발행 콘텐츠 최신 seed",
       updatedAt: now,
     },
     { merge: true },
@@ -152,17 +191,11 @@ export async function seedRegistryEntry(item) {
   batch.set(
     questionRef,
     {
-      kinDocId: item.kin_doc_id,
-      kinUrl: item.kin_url,
-      title: item.question_title.trim(),
-      normalizedTitle: normalizeRegistryTitle(item.question_title),
-      body: item.question_body,
+      ...questionData,
       relationType: "origin",
       canonicalArticleSlug: item.slug,
       wordpressUrl: item.wordpress_url,
       articleTitle: item.question_title,
-      lastSeenAt: now,
-      updatedAt: now,
     },
     { merge: true },
   );
@@ -176,11 +209,17 @@ export async function seedRegistryEntry(item) {
       articleRef,
       relationType: "origin",
       confidence: 1,
-      notes: "사용자 제공 기존 발행 글",
+      notes: "사용자 제공 정상 발행 글",
       updatedAt: now,
     },
     { merge: true },
   );
 
   await batch.commit();
+
+  return {
+    status,
+    questionId: item.kin_doc_id,
+    articleId: item.slug,
+  };
 }

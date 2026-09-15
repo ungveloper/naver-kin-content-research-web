@@ -11,7 +11,7 @@ export type ContentRegistryMatch = {
   wordpressUrl?: string;
   articleTitle?: string;
   articleSlug?: string;
-  relationType?: "origin" | "reuse" | "expand" | "duplicate";
+  relationType?: "origin" | "reuse" | "expand" | "duplicate" | "hold";
 };
 
 type FirebaseServiceAccountInput = {

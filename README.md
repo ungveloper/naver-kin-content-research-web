@@ -489,7 +489,7 @@ FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"..."}
 
 ### 초기 데이터
 
-`data/content-registry-seed-20260914.json`에 기존 발행 콘텐츠 11개가 들어 있습니다.
+`data/content-registry-seed-20260915.json`에 최신 질문 17개가 들어 있습니다. 정상 발행 12개는 WordPress 대표 글/관계까지 저장하고, 보류 5개는 `kinQuestions`에 `registryStatus=hold`로만 저장합니다.
 
 Firestore Database 생성과 인증 설정 후:
 
@@ -497,4 +497,12 @@ Firestore Database 생성과 인증 설정 후:
 npm run seed:content-registry
 ```
 
-를 실행하면 11개의 질문/대표 글/관계 문서가 idempotent하게 upsert됩니다.
+를 실행하면 질문 17개가 idempotent하게 upsert됩니다. 정상 발행 12개는 대표 글/관계 문서도 생성되고, 보류 5개는 대표 글 없이 질문 상태만 저장됩니다.
+
+
+### 보류 질문
+
+보류 질문은 `kinQuestions`에 `registryStatus=hold`로 저장합니다.
+WordPress URL이 없으므로 `contentArticles`와 `questionArticleRelations`는 만들지 않습니다.
+자동 monitor의 exact 중복 검사에서는 이미 본 질문으로 간주되어 다시 신규 조사하지 않습니다.
+나중에 정상 발행으로 전환하면 같은 `docId`를 published seed로 다시 upsert해 대표 글 관계를 연결할 수 있습니다.

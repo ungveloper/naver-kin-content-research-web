@@ -1,5 +1,6 @@
 [
   {
+    "status": "published",
     "kin_doc_id": "31874531",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=80901&docId=31874531",
     "question_title": "에어컨 청소 와 관리",
@@ -8,6 +9,7 @@
     "slug": "air-conditioner-cleaning-storage-care"
   },
   {
+    "status": "published",
     "kin_doc_id": "492628489",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=50501&docId=492628489",
     "question_title": "이케아 침대 프레임, 어떤 제품이 가장 실용적일까요?",
@@ -16,6 +18,7 @@
     "slug": "ikea-storage-bed-frame-comparison"
   },
   {
+    "status": "published",
     "kin_doc_id": "494141722",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=107040201&docId=494141722",
     "question_title": "갤럭시 데이터 복구 방법 알려주실 분.. ㅣ(제발요ㅠ)",
@@ -24,6 +27,7 @@
     "slug": "one-ui-home-data-reset-recovery"
   },
   {
+    "status": "published",
     "kin_doc_id": "494695482",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=50203&docId=494695482",
     "question_title": "에어팟프로2 페어링",
@@ -32,6 +36,7 @@
     "slug": "airpods-pro-2-replacement-case-pairing"
   },
   {
+    "status": "published",
     "kin_doc_id": "494895751",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=1060108&docId=494895751",
     "question_title": "아이클라우드 사진 없어짐",
@@ -40,6 +45,7 @@
     "slug": "icloud-photos-missing-recovery-checks"
   },
   {
+    "status": "published",
     "kin_doc_id": "494961053",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=1070402&docId=494961053",
     "question_title": "갤럭시워치 카톡 오류문제 해결법",
@@ -48,6 +54,7 @@
     "slug": "galaxy-watch-kakaotalk-temporary-error"
   },
   {
+    "status": "published",
     "kin_doc_id": "495009785",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=80901&docId=495009785",
     "question_title": "반지하 원룸 입주청소 물티슈로 해도 되나요",
@@ -56,6 +63,7 @@
     "slug": "semi-basement-studio-move-in-cleaning-wipes"
   },
   {
+    "status": "published",
     "kin_doc_id": "495058483",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=1070202&docId=495058483",
     "question_title": "아이폰 비번 초기화없이 푸는법",
@@ -64,6 +72,7 @@
     "slug": "iphone-passcode-without-reset"
   },
   {
+    "status": "published",
     "kin_doc_id": "495076807",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=5010601&docId=495076807",
     "question_title": "아이폰 아이 클라우드 저장공간",
@@ -72,6 +81,7 @@
     "slug": "iphone-icloud-photos-local-storage"
   },
   {
+    "status": "published",
     "kin_doc_id": "495089683",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=1070402&docId=495089683",
     "question_title": "A스마트폰 다른기기 로그인 후, B스마트폰 재로그인 후 카톡 ....",
@@ -80,11 +90,56 @@
     "slug": "kakaotalk-pc-chat-mobile-restore"
   },
   {
+    "status": "published",
     "kin_doc_id": "495145661",
     "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=50103&docId=495145661",
     "question_title": "이동형티비에 ott추가 가능? 사용 방법도 알려주세요",
     "question_body": "쿠팡에서 이동형티비 사려고 하는데 상세페이지에 나온 기본 ott중 티빙이랑 쿠팡플레이가 안보여서요 추가 가능한가요?  그리고 조립하고 티비 바로 키면 사용가능한건가요?",
     "wordpress_url": "https://3minago.com/portable-tv-ott-app-install/",
     "slug": "portable-tv-ott-app-install"
+  },
+  {
+    "status": "published",
+    "kin_doc_id": "494823020",
+    "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=107040202&docId=494823020",
+    "question_title": "lg 드럼통 세탁기 가 안됩니다",
+    "question_body": "세탁기에서 OE라는 오류가 계속뜹니다 그래서 배수필터 닦고 물도 빼고 했는데 잠깐 됐다가 탈수부분에서 안됩니다 또 나중에 OE 뜨고요 어떻게 해야합니까? 알려주세요",
+    "wordpress_url": "https://3minago.com/lg-washer-oe-drain-error/",
+    "slug": "lg-washer-oe-drain-error"
+  },
+  {
+    "status": "hold",
+    "kin_doc_id": "495088080",
+    "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=80901&docId=495088080",
+    "question_title": "원룸 벌레문제로 집 보증금, 이사 등.. 도와주세요",
+    "question_body": "안녕하세요. 저는 이번년도 3월에 입주 하고 살고 있는 대학생입니다. 그냥 살고 있다가 6월 말부터 집에 누수가 나서 천장에서 물이 새기 시작했습니다 저는 그동안 본가에 가있어서 몰랐고, 집에 와보니 7월 말쯤 아예 집 절반이 천장에서 센 물로 인해서 덮여 있고 누수한 물이 굳어서 닦이지도 않은 정도였어요 이때 집 주인에게 말하고 곰팡이가 피어버린 매트리스, 귀중품등 누수로 인해서 피해받은 것 보상 받았고 도배까지 집은 수리 했습니다 그런데 먼지다듬이 벌레가 정말 잘 수 없고 일상생활이 불과 할 정도로 침대에 몇 십 마리 씩 있고 바닥에 몇 100 마리 씩 있고 방역을 했음에도 불구하고 정말 일상생활이 불가능 할 정도로 많이 퍼져서 현재는 집에 못 들어가고 5일정도 친구 집에서 지내고 있습니다 오늘 또 살충? 방역을 했는데 하고 청소하고 새 이불 깔자마자 또 벌레가 나왔습니다 이 집이 원래 도배가 제대로 되어있지 않았는데 그냥 살고 있었거든요.. 정말 벌레가 어느정도냐면 빨래 다 하고 다 정리하고 바닥 닦고 대청소해도 또나옵니다.. 잠 당연히 2주넘게 못잤구요 일상 생활 불가입니다 그래서 집주인에게 보증금이야기, 계약중지 혹은 같은 오피스텔 다른 방으로 이사를 요구하려 합니다 현실적으로 가능할까요? 그리고 현실적인 조언, 대처법 부탁드립니다 부모님도 굉장히 스트레스 받아하세요.."
+  },
+  {
+    "status": "hold",
+    "kin_doc_id": "493127342",
+    "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=1070402&docId=493127342",
+    "question_title": "삼성 퀵쉐어로 pc랑 폰 연결, 복구 오류 표시?",
+    "question_body": "안녕하세요 제가 2025년 4월에 핸드폰 용량이 가득차서 노트북에 삼성 스마트 스위치 어플을 깔아서 사진과 동영상을 모두 옮겼습니다. 그리고 폴더가 생성되서 문제가 없겠거니 하고 폰을 초기화해서 사용한지가 1년이 되었습니다. 그리고 이전 사진을 찾아볼 일이 생겨서 pc에 들어가보니 폰을 연결해도 이미지와 같은 오류 문구가 뜹니다. (폰은 Z FILP 모델입니다.) 이런 경우 어떻게 해결해야 할까요? 꼭 필요한 사진들인데ㅠㅠ 해결 방법 좀 알려주세요 감사합니다."
+  },
+  {
+    "status": "hold",
+    "kin_doc_id": "493057948",
+    "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=1070402&docId=493057948",
+    "question_title": "워크아웃 준비 서류",
+    "question_body": "워크아웃 접수하려고 합니다.신분증 외에 급여명세서나 진술서 등 준비서류가 필요하다고 하던데 무조건 프린트로 뽑아가야하나요? 사람들마다 하는 얘기가 달라서요.어떤분은 신분증만 들고가면 알아서 조회가 된다고 하시는분도 있고 프린트 해서 들고가야한다는분도 있는데 뭐가 맞나요? 신복위 고객센터가 연결이 안되네요.아시는분은 답변 부탁드립니다."
+  },
+  {
+    "status": "hold",
+    "kin_doc_id": "493369291",
+    "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=501&docId=493369291",
+    "question_title": "에어컨 필터 청소 는 언제한번 해주는게 좋나요??",
+    "question_body": "알려주세용 ㅜㅜ 3년째안했어요"
+  },
+  {
+    "status": "hold",
+    "kin_doc_id": "495114361",
+    "kin_url": "https://kin.naver.com/qna/detail.naver?dirId=305&docId=495114361",
+    "question_title": "미스터블루 네트워크 오류",
+    "question_body": "어제 폰 바꾼 뒤로 네트워크 오류가 계속 떠요ㅠㅠㅠ 아예 지웠다가 깔아도 로그인이 불가능해요..어카죠ㅠㅠ"
   }
 ]
