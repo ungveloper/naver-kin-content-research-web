@@ -169,6 +169,11 @@ export function buildRegistrySearchTokens(title, body = "") {
   return tokens.slice(0, 30);
 }
 
+export const REGISTRY_SIMILARITY_POLICY = {
+  excludeScore: 0.44,
+  warningScore: 0.3,
+};
+
 export function scoreRegistrySimilarity(left, right) {
   const leftTitle = String(left?.title || "");
   const rightTitle = String(right?.title || "");
@@ -194,8 +199,8 @@ export function scoreRegistrySimilarity(left, right) {
       + (tokenOverlap * 0.3),
   );
 
-  const similar = (
-    weighted >= 0.44
+  const exclude = (
+    weighted >= REGISTRY_SIMILARITY_POLICY.excludeScore
     || (titleDice >= 0.58 && tokenOverlap >= 0.28)
     || (
       titleDice >= 0.32
@@ -204,12 +209,28 @@ export function scoreRegistrySimilarity(left, right) {
     )
   );
 
+  const warning = (
+    !exclude
+    && (
+      weighted >= REGISTRY_SIMILARITY_POLICY.warningScore
+      || (titleDice >= 0.34 && tokenOverlap >= 0.18)
+      || tokenOverlap >= 0.3
+    )
+  );
+
+  const decision = exclude
+    ? "exclude"
+    : warning
+      ? "warning"
+      : "new";
+
   return {
     score: Number(weighted.toFixed(4)),
     titleDice: Number(titleDice.toFixed(4)),
     bodyDice: Number(bodyDice.toFixed(4)),
     tokenOverlap: Number(tokenOverlap.toFixed(4)),
-    similar,
+    decision,
+    similar: decision === "exclude",
   };
 }
 
@@ -330,7 +351,8 @@ export async function findContentRegistryHistoryMatch(input) {
     .limit(40)
     .get();
 
-  let best = null;
+  let bestExclude = null;
+  let bestWarning = null;
 
   for (const doc of candidates.docs) {
     if (docId && doc.id === docId) {
@@ -346,27 +368,45 @@ export async function findContentRegistryHistoryMatch(input) {
       },
     );
 
-    if (!similarity.similar) {
+    if (similarity.decision === "new") {
       continue;
     }
 
-    if (!best || similarity.score > best.similarity.score) {
-      best = mapQuestion(doc, "similar", similarity);
+    const mapped = mapQuestion(doc, "similar", similarity);
+
+    if (similarity.decision === "exclude") {
+      if (
+        !bestExclude
+        || similarity.score > bestExclude.similarity.score
+      ) {
+        bestExclude = mapped;
+      }
+
+      continue;
+    }
+
+    if (
+      !bestWarning
+      || similarity.score > bestWarning.similarity.score
+    ) {
+      bestWarning = mapped;
     }
   }
 
-  return best;
+  return bestExclude || bestWarning;
 }
 
 export async function findContentRegistryExactMatch(input) {
   return findContentRegistryHistoryMatch(input);
 }
 
-export async function recordContentRegistryQuestion(item) {
+export async function claimContentRegistryQuestion(item) {
   const db = getContentRegistryDb();
 
   if (!db) {
-    return null;
+    throw new Error(
+      "Firestore 콘텐츠 레지스트리가 설정되지 않았습니다.",
+    );
   }
 
   const kinUrl = String(item?.url || item?.kinUrl || "").trim();
@@ -376,18 +416,28 @@ export async function recordContentRegistryQuestion(item) {
 
   if (!kinDocId) {
     throw new Error(
-      "KIN docId가 없어 Firestore history에 기록할 수 없습니다.",
+      "KIN docId가 없어 Firestore history를 claim할 수 없습니다.",
     );
   }
 
   const title = String(item?.title || "").trim();
   const body = String(item?.body || "").trim();
+
   const ref = db
     .collection(CONTENT_REGISTRY_COLLECTIONS.questions)
     .doc(kinDocId);
 
-  await db.runTransaction(async (transaction) => {
+  return db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
+
+    if (snapshot.exists) {
+      return {
+        claimed: false,
+        kinDocId,
+        existing: mapQuestion(snapshot, "exact_doc_id"),
+      };
+    }
+
     const now = FieldValue.serverTimestamp();
 
     transaction.set(
@@ -400,9 +450,7 @@ export async function recordContentRegistryQuestion(item) {
         body,
         historyState: "seen",
         searchTokens: buildRegistrySearchTokens(title, body),
-        firstSeenAt: snapshot.exists
-          ? (snapshot.data()?.firstSeenAt || now)
-          : now,
+        firstSeenAt: now,
         lastSeenAt: now,
         updatedAt: now,
         registryStatus: FieldValue.delete(),
@@ -410,13 +458,17 @@ export async function recordContentRegistryQuestion(item) {
       },
       { merge: true },
     );
-  });
 
-  return {
-    kinDocId,
-    kinUrl,
-    title,
-  };
+    return {
+      claimed: true,
+      kinDocId,
+      existing: null,
+    };
+  });
+}
+
+export async function recordContentRegistryQuestion(item) {
+  return claimContentRegistryQuestion(item);
 }
 
 export async function seedRegistryEntry(item) {

@@ -509,3 +509,14 @@ Firestore의 `kinQuestions`는 Notion의 보류/발행 상태를 동기화하는
 - 유사도 후보는 Firestore `searchTokens`로 좁힌 뒤 제목/본문 유사도를 로컬에서 보수적으로 판정합니다.
 - history에 없는 질문은 실제 조사 전에 Firestore에 즉시 기록하므로 이후 실행부터 동일/유사 질문이 다시 신규 후보로 나오지 않습니다.
 - WordPress URL이 있는 질문만 `contentArticles` / `questionArticleRelations` 연결을 유지합니다.
+
+### Firestore history 안전장치
+
+자동 monitor는 Firestore history를 중복 방지의 필수 기준으로 사용합니다.
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON`이 없거나 Firestore 조회/기록이 실패하면 fail-closed로 해당 실행을 실패시켜 중복 조사를 방지합니다.
+- GitHub Actions `concurrency`로 monitor 실행이 겹치지 않게 합니다.
+- 신규 질문은 Firestore transaction으로 atomic claim하며, 동일 `docId`를 다른 실행이 먼저 claim했다면 뒤 실행은 제외합니다.
+- 유사도는 `exclude / warning / new` 3단계입니다.
+- `exclude`는 자동 제외, `warning`은 로그를 남기고 신규 처리, `new`는 정상 처리합니다.
+- warning으로 통과한 질문도 최초 처리 시 history에 claim되므로 동일 질문이 다음 실행에서 반복되지는 않습니다.

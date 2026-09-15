@@ -4,9 +4,9 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import {
+  claimContentRegistryQuestion,
   findContentRegistryHistoryMatch,
   isContentRegistryConfigured,
-  recordContentRegistryQuestion,
 } from "./content-registry.mjs";
 const execFileAsync = promisify(execFile);
 
@@ -185,23 +185,36 @@ async function main() {
     }
 
 
-    if (isContentRegistryConfigured()) {
-      try {
-        const historyBody = String(
-          candidate.questionText
-          || candidate.questionBody
-          || candidate.body
-          || candidate.description
-          || "",
-        ).trim();
+    if (!isContentRegistryConfigured()) {
+      throw new Error(
+        "Firestore 전체 히스토리 필수 설정 누락: "
+        + "FIREBASE_SERVICE_ACCOUNT_JSON",
+      );
+    }
 
-        const registryMatch = await findContentRegistryHistoryMatch({
-          title: candidate.title,
-          body: historyBody,
-          url: candidate.link,
-        });
+    try {
+      const historyBody = String(
+        candidate.questionText
+        || candidate.questionBody
+        || candidate.body
+        || candidate.description
+        || "",
+      ).trim();
 
-        if (registryMatch) {
+      const registryMatch = await findContentRegistryHistoryMatch({
+        title: candidate.title,
+        body: historyBody,
+        url: candidate.link,
+      });
+
+      if (registryMatch) {
+        const similarityDecision = (
+          registryMatch.matchType === "similar"
+            ? registryMatch.similarity?.decision
+            : "exclude"
+        );
+
+        if (similarityDecision === "exclude") {
           const similarityText = registryMatch.matchType === "similar"
             ? ` · 유사도 ${registryMatch.similarity?.score ?? "n/a"}`
             : "";
@@ -218,22 +231,41 @@ async function main() {
           continue;
         }
 
-        await recordContentRegistryQuestion({
-          title: candidate.title,
-          body: historyBody,
-          url: candidate.link,
-        });
-
-        console.log(
-          `[KIN monitor] Firestore 전체 히스토리에 최초 수집 기록: `
-          + `${candidate.title}`,
-        );
-      } catch (error) {
         console.warn(
-          `[KIN monitor] Firestore 전체 히스토리 조회/기록 실패 · `
-          + `${error instanceof Error ? error.message : String(error)}`,
+          `[KIN monitor] Firestore 유사 경고 통과: `
+          + `${candidate.title}`
+          + ` · score=${registryMatch.similarity?.score ?? "n/a"}`
+          + ` · 기존=${registryMatch.questionTitle}`,
         );
       }
+
+      const claim = await claimContentRegistryQuestion({
+        title: candidate.title,
+        body: historyBody,
+        url: candidate.link,
+      });
+
+      if (!claim.claimed) {
+        console.log(
+          `[KIN monitor] Firestore 동시 실행 claim 충돌로 제외: `
+          + `${candidate.title}`,
+        );
+
+        await sleep(360);
+        continue;
+      }
+
+      console.log(
+        `[KIN monitor] Firestore 전체 히스토리에 최초 수집 claim: `
+        + `${candidate.title}`,
+      );
+    } catch (error) {
+      console.error(
+        `[KIN monitor] Firestore 전체 히스토리 처리 실패: `
+        + `${error instanceof Error ? error.message : String(error)}`,
+      );
+
+      throw error;
     }
 
     const exactTitle = String(candidate.title || "").trim();

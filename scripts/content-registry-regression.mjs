@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   CONTENT_REGISTRY_COLLECTIONS,
+  REGISTRY_SIMILARITY_POLICY,
   buildRegistrySearchTokens,
   extractKinDocId,
   normalizeRegistryTitle,
@@ -13,6 +14,9 @@ assert.deepEqual(CONTENT_REGISTRY_COLLECTIONS, {
   articles: "contentArticles",
   relations: "questionArticleRelations",
 });
+
+assert.equal(REGISTRY_SIMILARITY_POLICY.excludeScore, 0.44);
+assert.equal(REGISTRY_SIMILARITY_POLICY.warningScore, 0.3);
 
 assert.equal(
   extractKinDocId(
@@ -56,7 +60,7 @@ const tokens = buildRegistrySearchTokens(
 assert.ok(tokens.length > 0);
 assert.ok(tokens.length <= 30);
 
-const similar = scoreRegistrySimilarity(
+const exclude = scoreRegistrySimilarity(
   {
     title: "갤럭시워치 카톡 오류문제 해결법",
     body: "갤럭시 워치에서 카톡을 연결하면 일시적인 오류가 계속 뜹니다.",
@@ -67,9 +71,22 @@ const similar = scoreRegistrySimilarity(
   },
 );
 
-assert.equal(similar.similar, true);
+assert.equal(exclude.decision, "exclude");
 
-const different = scoreRegistrySimilarity(
+const warning = scoreRegistrySimilarity(
+  {
+    title: "갤럭시워치 카톡 오류문제 해결법",
+    body: "갤럭시 워치에서 카톡을 연결하면 일시적인 오류가 계속 뜹니다.",
+  },
+  {
+    title: "갤럭시 워치 카톡 알림이 늦어요",
+    body: "카카오톡 알림이 몇 분 뒤에 워치로 와요.",
+  },
+);
+
+assert.equal(warning.decision, "warning");
+
+const fresh = scoreRegistrySimilarity(
   {
     title: "갤럭시워치 카톡 오류문제 해결법",
     body: "갤럭시 워치에서 카톡을 연결하면 일시적인 오류가 계속 뜹니다.",
@@ -80,25 +97,41 @@ const different = scoreRegistrySimilarity(
   },
 );
 
-assert.equal(different.similar, false);
+assert.equal(fresh.decision, "new");
+
+const registrySource = fs.readFileSync(
+  new URL("./content-registry.mjs", import.meta.url),
+  "utf8",
+);
+
+assert.match(registrySource, /claimContentRegistryQuestion/);
+assert.match(registrySource, /claimed:\s*false/);
+assert.match(registrySource, /claimed:\s*true/);
 
 const monitor = fs.readFileSync(
   new URL("./kin-life-guide-monitor.mjs", import.meta.url),
   "utf8",
 );
 
-assert.match(monitor, /findContentRegistryHistoryMatch/);
-assert.match(monitor, /recordContentRegistryQuestion/);
-assert.match(monitor, /Firestore 전체 히스토리/);
+assert.match(monitor, /claimContentRegistryQuestion/);
+assert.match(monitor, /Firestore 전체 히스토리 필수 설정 누락/);
+assert.match(monitor, /Firestore 전체 히스토리 처리 실패/);
+assert.match(monitor, /유사 경고 통과/);
+assert.match(monitor, /동시 실행 claim 충돌로 제외/);
 
-const runner = fs.readFileSync(
-  new URL("./seed-content-registry.mjs", import.meta.url),
+const workflow = fs.readFileSync(
+  new URL(
+    "../.github/workflows/kin-life-guide-monitor.yml",
+    import.meta.url,
+  ),
   "utf8",
 );
 
-assert.match(runner, /Firestore 통합 history seed/);
+assert.match(workflow, /^concurrency:/m);
+assert.match(workflow, /group:\s*kin-life-guide-monitor/);
+assert.match(workflow, /cancel-in-progress:\s*false/);
 
 console.log(
-  "Firestore 통합 history 회귀 테스트 통과: "
-  + "17개 seen + 자동 history 기록 + 유사 질문 제외",
+  "Firestore history 안전장치 회귀 테스트 통과: "
+  + "fail-closed + atomic claim + concurrency + 3단계 유사도",
 );
