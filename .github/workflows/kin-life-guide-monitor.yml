@@ -13,3 +13,60 @@ permissions:
 concurrency:
   group: kin-life-guide-monitor
   cancel-in-progress: false
+env:
+  FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+  KIN_SELF_PROFILE_U: ${{ vars.KIN_SELF_PROFILE_U }}
+  KIN_SELF_NICKNAME: ${{ vars.KIN_SELF_NICKNAME }}
+
+jobs:
+  monitor:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.KIN_AUTO_MONITOR_ENABLED == '' || vars.KIN_AUTO_MONITOR_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure Notion editorial tracking schema
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
+        run: ./node_modules/.bin/tsx scripts/ensure-notion-editorial-schema.ts
+
+
+
+        continue-on-error: true
+
+      - name: Check Notion question timestamp schema
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
+        run: ./node_modules/.bin/tsx scripts/migrate-notion-question-timestamp-schema.ts
+      - name: Check new Naver Knowledge iN questions
+        env:
+          NAVER_API_HUB_CLIENT_ID: ${{ secrets.NAVER_API_HUB_CLIENT_ID }}
+          NAVER_API_HUB_CLIENT_SECRET: ${{ secrets.NAVER_API_HUB_CLIENT_SECRET }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
+          NOTION_URL_PROPERTY: ${{ vars.NOTION_URL_PROPERTY }}
+          MONITOR_SCORE_THRESHOLD: ${{ vars.MONITOR_SCORE_THRESHOLD }}
+          MONITOR_MAX_PAGES_PER_RUN: ${{ vars.MONITOR_MAX_PAGES_PER_RUN }}
+          MONITOR_SEEDS_PER_RUN: ${{ vars.MONITOR_SEEDS_PER_RUN }}
+          MONITOR_MAX_FOCUSED_PROMPTS_PER_RUN: ${{ vars.MONITOR_MAX_FOCUSED_PROMPTS_PER_RUN }}
+          WORDPRESS_SITE_URL: ${{ vars.WORDPRESS_SITE_URL }}
+          GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL: ${{ secrets.GOOGLE_SEARCH_CONSOLE_CLIENT_EMAIL }}
+          GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY: ${{ secrets.GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY }}
+          GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY_BASE64: ${{ secrets.GOOGLE_SEARCH_CONSOLE_PRIVATE_KEY_BASE64 }}
+          GOOGLE_SEARCH_CONSOLE_SITE_URL: ${{ vars.GOOGLE_SEARCH_CONSOLE_SITE_URL }}
+        run: |
+          set -euo pipefail
+          node scripts/kin-life-guide-monitor.mjs

@@ -520,3 +520,19 @@ Firestore의 `kinQuestions`는 Notion의 보류/발행 상태를 동기화하는
 - 유사도는 `exclude / warning / new` 3단계입니다.
 - `exclude`는 자동 제외, `warning`은 로그를 남기고 신규 처리, `new`는 정상 처리합니다.
 - warning으로 통과한 질문도 최초 처리 시 history에 claim되므로 동일 질문이 다음 실행에서 반복되지는 않습니다.
+
+### 자동 지식iN monitor 일시정지
+
+정기 자동 수집만 잠시 멈추고 싶을 때 GitHub Repository Variable `KIN_AUTO_MONITOR_ENABLED`를 사용합니다.
+
+- 위치: `Settings → Secrets and variables → Actions → Variables`
+- 이름: `KIN_AUTO_MONITOR_ENABLED`
+- 값 `true`: 예약된 cron 자동 실행
+- 값 `false`: 예약된 cron 실행은 job 단계에서 skip
+- 변수가 아직 없으면 기존 동작을 유지하기 위해 `true`와 동일하게 취급
+- `false` 상태에서도 Actions 화면의 `Run workflow` 수동 실행은 허용
+- 다시 `true`로 바꾸면 다음 예약 실행부터 자동 재개
+- 이 변수는 비밀값이 아니므로 Secret이 아니라 Repository Variable로 관리
+- Vercel, Firestore 저장 데이터, Notion 데이터, 직접 Focused Research에는 영향을 주지 않음
+
+자동 monitor workflow 자체에는 `concurrency`도 적용되어 있어 실행이 겹치지 않으며, Firestore history의 atomic claim/fail-closed 안전장치와 함께 동작합니다.

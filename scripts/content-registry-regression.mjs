@@ -131,6 +131,31 @@ assert.match(workflow, /^concurrency:/m);
 assert.match(workflow, /group:\s*kin-life-guide-monitor/);
 assert.match(workflow, /cancel-in-progress:\s*false/);
 
+assert.match(
+  workflow,
+  /^jobs:/m,
+);
+assert.match(
+  workflow,
+  /kin-life-guide-monitor\.mjs/,
+);
+assert.match(
+  workflow,
+  /FIREBASE_SERVICE_ACCOUNT_JSON/,
+);
+assert.match(
+  workflow,
+  /vars\.KIN_AUTO_MONITOR_ENABLED/,
+);
+assert.match(
+  workflow,
+  /github\.event_name\s*==\s*'workflow_dispatch'/,
+);
+assert.match(
+  workflow,
+  /workflow_dispatch:/,
+);
+
 console.log(
   "Firestore history 안전장치 회귀 테스트 통과: "
   + "fail-closed + atomic claim + concurrency + 3단계 유사도",
