@@ -15,8 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
   KIN_SELF_PROFILE_U: ${{ vars.KIN_SELF_PROFILE_U }}
   KIN_SELF_NICKNAME: ${{ vars.KIN_SELF_NICKNAME }}
 

@@ -190,7 +190,7 @@ async function main() {
 
         if (registryMatch) {
           console.log(
-            `[KIN monitor] Supabase 콘텐츠 레지스트리에 이미 있어 제외: `
+            `[KIN monitor] Firestore 콘텐츠 레지스트리에 이미 있어 제외: `
             + `${registryMatch.questionTitle}`
             + `${registryMatch.wordpressUrl ? ` · ${registryMatch.wordpressUrl}` : ""}`,
           );
@@ -199,7 +199,7 @@ async function main() {
         }
       } catch (error) {
         console.warn(
-          `[KIN monitor] Supabase 콘텐츠 레지스트리 조회 실패 · `
+          `[KIN monitor] Firestore 콘텐츠 레지스트리 조회 실패 · `
           + `${error instanceof Error ? error.message : String(error)}`,
         );
       }

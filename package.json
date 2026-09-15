@@ -11,6 +11,7 @@
     "seed:content-registry": "node scripts/seed-content-registry.mjs"
   },
   "dependencies": {
+    "firebase-admin": "^14.4.0",
     "google-auth-library": "11.0.2",
     "next": "16.3.1",
     "react": "19.2.8",

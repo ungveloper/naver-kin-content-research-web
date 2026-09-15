@@ -1,5 +1,8 @@
 import "server-only";
 
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+
 export type ContentRegistryMatch = {
   questionId?: string;
   kinDocId: string;
@@ -7,15 +10,21 @@ export type ContentRegistryMatch = {
   questionTitle: string;
   wordpressUrl?: string;
   articleTitle?: string;
+  articleSlug?: string;
   relationType?: "origin" | "reuse" | "expand" | "duplicate";
 };
 
-export function isContentRegistryConfigured() {
-  return Boolean(
-    process.env.SUPABASE_URL?.trim()
-      && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
-  );
-}
+type FirebaseServiceAccountInput = {
+  project_id?: string;
+  client_email?: string;
+  private_key?: string;
+};
+
+const COLLECTIONS = {
+  questions: "kinQuestions",
+  articles: "contentArticles",
+  relations: "questionArticleRelations",
+} as const;
 
 export function extractKinDocId(url: string) {
   try {
@@ -33,44 +42,58 @@ export function normalizeRegistryTitle(value: string) {
     .toLocaleLowerCase("ko-KR");
 }
 
-function supabaseHeaders() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
-
-  return {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    "Content-Type": "application/json",
-  };
+export function isContentRegistryConfigured() {
+  return Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim());
 }
 
-async function registryFetch(path: string) {
-  const base = process.env.SUPABASE_URL?.trim()?.replace(/\/$/, "");
-  if (!base || !isContentRegistryConfigured()) return null;
+function parseServiceAccount() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
 
-  const response = await fetch(`${base}/rest/v1/${path}`, {
-    headers: supabaseHeaders(),
-    cache: "no-store",
-  });
+  if (!raw) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON이 설정되지 않았습니다.");
+  }
 
-  if (!response.ok) {
+  const parsed = JSON.parse(raw) as FirebaseServiceAccountInput;
+
+  if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
     throw new Error(
-      `Supabase registry ${response.status}: ${await response.text()}`,
+      "Firebase service account JSON에 project_id/client_email/private_key가 필요합니다.",
     );
   }
 
-  return response.json();
+  return {
+    projectId: parsed.project_id,
+    clientEmail: parsed.client_email,
+    privateKey: parsed.private_key.replace(/\\n/g, "\n"),
+  };
 }
 
-function mapRow(row: Record<string, unknown>): ContentRegistryMatch {
+function registryDb() {
+  if (!isContentRegistryConfigured()) return null;
+
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert(parseServiceAccount()),
+    });
+  }
+
+  return getFirestore();
+}
+
+function mapQuestion(
+  id: string,
+  data: Record<string, unknown>,
+): ContentRegistryMatch {
   return {
-    questionId: String(row.question_id || "") || undefined,
-    kinDocId: String(row.kin_doc_id || ""),
-    kinUrl: String(row.kin_url || ""),
-    questionTitle: String(row.question_title || ""),
-    wordpressUrl: String(row.wordpress_url || "") || undefined,
-    articleTitle: String(row.article_title || "") || undefined,
+    questionId: id,
+    kinDocId: String(data.kinDocId || id),
+    kinUrl: String(data.kinUrl || ""),
+    questionTitle: String(data.title || ""),
+    wordpressUrl: String(data.wordpressUrl || "") || undefined,
+    articleTitle: String(data.articleTitle || "") || undefined,
+    articleSlug: String(data.canonicalArticleSlug || "") || undefined,
     relationType:
-      (String(row.relation_type || "") as ContentRegistryMatch["relationType"])
+      (String(data.relationType || "") as ContentRegistryMatch["relationType"])
       || undefined,
   };
 }
@@ -79,30 +102,41 @@ export async function findContentRegistryExactMatch(input: {
   title?: string;
   url?: string;
 }): Promise<ContentRegistryMatch | null> {
-  if (!isContentRegistryConfigured()) return null;
+  const db = registryDb();
+  if (!db) return null;
 
   const docId = extractKinDocId(input.url || "");
-  const title = String(input.title || "").trim();
   const url = String(input.url || "").trim();
+  const title = String(input.title || "").trim();
 
-  const checks: Array<[string, string]> = [];
+  if (docId) {
+    const direct = await db.collection(COLLECTIONS.questions).doc(docId).get();
+    if (direct.exists) return mapQuestion(direct.id, direct.data() || {});
+  }
 
-  if (docId) checks.push(["kin_doc_id", docId]);
-  if (url) checks.push(["kin_url", url]);
-  if (title) checks.push(["question_title", title]);
+  if (url) {
+    const byUrl = await db
+      .collection(COLLECTIONS.questions)
+      .where("kinUrl", "==", url)
+      .limit(1)
+      .get();
 
-  for (const [column, value] of checks) {
-    const params = new URLSearchParams();
-    params.set("select", "*");
-    params.set(column, `eq.${value}`);
-    params.set("limit", "1");
+    if (!byUrl.empty) {
+      const doc = byUrl.docs[0];
+      return mapQuestion(doc.id, doc.data());
+    }
+  }
 
-    const rows = await registryFetch(
-      `content_registry_entries?${params.toString()}`,
-    );
+  if (title) {
+    const byTitle = await db
+      .collection(COLLECTIONS.questions)
+      .where("title", "==", title)
+      .limit(1)
+      .get();
 
-    if (Array.isArray(rows) && rows[0]) {
-      return mapRow(rows[0]);
+    if (!byTitle.empty) {
+      const doc = byTitle.docs[0];
+      return mapQuestion(doc.id, doc.data());
     }
   }
 
