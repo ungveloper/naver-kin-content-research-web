@@ -489,7 +489,7 @@ FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"..."}
 
 ### 초기 데이터
 
-`data/content-registry-seed-20260915.json`에 최신 질문 17개가 들어 있습니다. 정상 발행 12개는 WordPress 대표 글/관계까지 저장하고, 보류 5개는 `kinQuestions`에 `registryStatus=hold`로만 저장합니다.
+`data/content-registry-seed-20260915.json`에 최신 질문 17개가 들어 있습니다. 17개 질문은 발행/보류 상태와 무관하게 모두 `kinQuestions`의 전체 수집 히스토리로 저장합니다. WordPress URL이 있는 12개만 대표 글/관계를 추가로 유지합니다.
 
 Firestore Database 생성과 인증 설정 후:
 
@@ -499,10 +499,13 @@ npm run seed:content-registry
 
 를 실행하면 질문 17개가 idempotent하게 upsert됩니다. 정상 발행 12개는 대표 글/관계 문서도 생성되고, 보류 5개는 대표 글 없이 질문 상태만 저장됩니다.
 
+### 전체 수집 히스토리와 유사 질문 차단
 
-### 보류 질문
+Firestore의 `kinQuestions`는 Notion의 보류/발행 상태를 동기화하는 DB가 아니라, 자동 수집기가 이미 한 번 본 질문 전체를 기억하는 히스토리입니다.
 
-보류 질문은 `kinQuestions`에 `registryStatus=hold`로 저장합니다.
-WordPress URL이 없으므로 `contentArticles`와 `questionArticleRelations`는 만들지 않습니다.
-자동 monitor의 exact 중복 검사에서는 이미 본 질문으로 간주되어 다시 신규 조사하지 않습니다.
-나중에 정상 발행으로 전환하면 같은 `docId`를 published seed로 다시 upsert해 대표 글 관계를 연결할 수 있습니다.
+- 모든 질문은 `historyState=seen`으로 통일합니다.
+- Notion에서 보류/발행 상태가 바뀌어도 Firestore history 판정에는 영향을 주지 않습니다.
+- 새 후보는 `docId → URL → normalized title → 유사 질문` 순서로 검사합니다.
+- 유사도 후보는 Firestore `searchTokens`로 좁힌 뒤 제목/본문 유사도를 로컬에서 보수적으로 판정합니다.
+- history에 없는 질문은 실제 조사 전에 Firestore에 즉시 기록하므로 이후 실행부터 동일/유사 질문이 다시 신규 후보로 나오지 않습니다.
+- WordPress URL이 있는 질문만 `contentArticles` / `questionArticleRelations` 연결을 유지합니다.

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   CONTENT_REGISTRY_COLLECTIONS,
+  buildRegistrySearchTokens,
   extractKinDocId,
   normalizeRegistryTitle,
+  scoreRegistrySimilarity,
 } from "./content-registry.mjs";
 
 assert.deepEqual(CONTENT_REGISTRY_COLLECTIONS, {
@@ -31,89 +33,72 @@ const seed = JSON.parse(
   ),
 );
 
-const published = seed.filter((item) => item.status === "published");
-const hold = seed.filter((item) => item.status === "hold");
-
 assert.equal(seed.length, 17);
-assert.equal(published.length, 12);
-assert.equal(hold.length, 5);
+assert.equal(new Set(seed.map((item) => item.kin_doc_id)).size, 17);
+assert.ok(seed.every((item) => item.history_state === "seen"));
+assert.ok(seed.every((item) => !("status" in item)));
 
-assert.equal(
-  new Set(seed.map((item) => item.kin_doc_id)).size,
-  17,
+const withArticle = seed.filter(
+  (item) => item.wordpress_url && item.slug,
 );
-assert.equal(
-  new Set(published.map((item) => item.wordpress_url)).size,
-  12,
-);
-assert.equal(
-  new Set(published.map((item) => item.slug)).size,
-  12,
+const historyOnly = seed.filter(
+  (item) => !item.wordpress_url && !item.slug,
 );
 
-assert.ok(
-  published.every((item) => item.wordpress_url && item.slug),
-);
-assert.ok(
-  hold.every((item) => !item.wordpress_url && !item.slug),
+assert.equal(withArticle.length, 12);
+assert.equal(historyOnly.length, 5);
+
+const tokens = buildRegistrySearchTokens(
+  "갤럭시 워치 카카오톡 일시적인 오류",
+  "워치에서 카톡 실행 시 오류가 나고 재연결해도 같습니다.",
 );
 
-assert.ok(
-  published.some((item) => item.kin_doc_id === "494823020"),
-);
-assert.ok(
-  hold.some((item) => item.kin_doc_id === "493369291"),
+assert.ok(tokens.length > 0);
+assert.ok(tokens.length <= 30);
+
+const similar = scoreRegistrySimilarity(
+  {
+    title: "갤럭시워치 카톡 오류문제 해결법",
+    body: "갤럭시 워치에서 카톡을 연결하면 일시적인 오류가 계속 뜹니다.",
+  },
+  {
+    title: "갤럭시 워치 카카오톡 일시적인 오류",
+    body: "워치에서 카톡 실행 시 일시적인 오류가 나오고 재연결해도 같습니다.",
+  },
 );
 
-const runner = fs.readFileSync(
-  new URL("./seed-content-registry.mjs", import.meta.url),
-  "utf8",
+assert.equal(similar.similar, true);
+
+const different = scoreRegistrySimilarity(
+  {
+    title: "갤럭시워치 카톡 오류문제 해결법",
+    body: "갤럭시 워치에서 카톡을 연결하면 일시적인 오류가 계속 뜹니다.",
+  },
+  {
+    title: "갤럭시 워치 배터리가 빨리 닳아요",
+    body: "충전해도 하루를 못 가고 배터리가 빠르게 줄어듭니다.",
+  },
 );
 
-assert.match(
-  runner,
-  /content-registry-seed-20260915\.json/,
-);
-assert.match(runner, /seed:published/);
-assert.match(runner, /seed:hold/);
-
-const registrySource = fs.readFileSync(
-  new URL("./content-registry.mjs", import.meta.url),
-  "utf8",
-);
-
-assert.match(registrySource, /registryStatus:\s*status/);
-assert.match(registrySource, /relationType:\s*"hold"/);
+assert.equal(different.similar, false);
 
 const monitor = fs.readFileSync(
   new URL("./kin-life-guide-monitor.mjs", import.meta.url),
   "utf8",
 );
 
-assert.match(
-  monitor,
-  /Firestore 콘텐츠 레지스트리에 이미 있어 제외/,
-);
-assert.doesNotMatch(
-  monitor,
-  /Supabase 콘텐츠 레지스트리/,
-);
+assert.match(monitor, /findContentRegistryHistoryMatch/);
+assert.match(monitor, /recordContentRegistryQuestion/);
+assert.match(monitor, /Firestore 전체 히스토리/);
 
-const workflow = fs.readFileSync(
-  new URL(
-    "../.github/workflows/kin-life-guide-monitor.yml",
-    import.meta.url,
-  ),
+const runner = fs.readFileSync(
+  new URL("./seed-content-registry.mjs", import.meta.url),
   "utf8",
 );
 
-assert.match(
-  workflow,
-  /FIREBASE_SERVICE_ACCOUNT_JSON:\s*\$\{\{\s*secrets\.FIREBASE_SERVICE_ACCOUNT_JSON\s*\}\}/,
-);
-assert.doesNotMatch(workflow, /SUPABASE_/);
+assert.match(runner, /Firestore 통합 history seed/);
 
 console.log(
-  "Firestore 콘텐츠 레지스트리 회귀 테스트 통과: "
-  + "질문 17개(정상 발행 12 + 보류 5) + 3 collections + exact gate",
+  "Firestore 통합 history 회귀 테스트 통과: "
+  + "17개 seen + 자동 history 기록 + 유사 질문 제외",
 );

@@ -3,7 +3,11 @@ import { inspectKinAnswerability, inspectKinSelfAnswer, reconcileKinQuestion } f
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { findContentRegistryExactMatch, isContentRegistryConfigured } from "./content-registry.mjs";
+import {
+  findContentRegistryHistoryMatch,
+  isContentRegistryConfigured,
+  recordContentRegistryQuestion,
+} from "./content-registry.mjs";
 const execFileAsync = promisify(execFile);
 
 const NAVER_BASE_URL = process.env.NAVER_API_HUB_BASE_URL || "https://naverapihub.apigw.ntruss.com";
@@ -181,25 +185,52 @@ async function main() {
     }
 
 
-    if (!existingPage && isContentRegistryConfigured()) {
+    if (isContentRegistryConfigured()) {
       try {
-        const registryMatch = await findContentRegistryExactMatch({
+        const historyBody = String(
+          candidate.questionText
+          || candidate.questionBody
+          || candidate.body
+          || candidate.description
+          || "",
+        ).trim();
+
+        const registryMatch = await findContentRegistryHistoryMatch({
           title: candidate.title,
+          body: historyBody,
           url: candidate.link,
         });
 
         if (registryMatch) {
+          const similarityText = registryMatch.matchType === "similar"
+            ? ` · 유사도 ${registryMatch.similarity?.score ?? "n/a"}`
+            : "";
+
           console.log(
-            `[KIN monitor] Firestore 콘텐츠 레지스트리에 이미 있어 제외: `
-            + `${registryMatch.questionTitle}`
-            + `${registryMatch.wordpressUrl ? ` · ${registryMatch.wordpressUrl}` : ""}`,
+            `[KIN monitor] Firestore 전체 히스토리에서 제외: `
+            + `${candidate.title}`
+            + ` · match=${registryMatch.matchType}`
+            + similarityText
+            + ` · 기존=${registryMatch.questionTitle}`,
           );
+
           await sleep(360);
           continue;
         }
+
+        await recordContentRegistryQuestion({
+          title: candidate.title,
+          body: historyBody,
+          url: candidate.link,
+        });
+
+        console.log(
+          `[KIN monitor] Firestore 전체 히스토리에 최초 수집 기록: `
+          + `${candidate.title}`,
+        );
       } catch (error) {
         console.warn(
-          `[KIN monitor] Firestore 콘텐츠 레지스트리 조회 실패 · `
+          `[KIN monitor] Firestore 전체 히스토리 조회/기록 실패 · `
           + `${error instanceof Error ? error.message : String(error)}`,
         );
       }

@@ -23,26 +23,26 @@ const seedUrl = new URL(
 
 const items = JSON.parse(await fs.readFile(seedUrl, "utf8"));
 
-let publishedCount = 0;
-let holdCount = 0;
+let withArticleCount = 0;
+let historyOnlyCount = 0;
 
 for (const item of items) {
   const result = await seedRegistryEntry(item);
 
-  if (result.status === "published") {
-    publishedCount += 1;
+  if (result.hasArticle) {
+    withArticleCount += 1;
     console.log(
-      `[seed:published] ${item.kin_doc_id} -> ${item.wordpress_url}`,
+      `[seed:history+article] ${item.kin_doc_id} -> ${item.wordpress_url}`,
     );
   } else {
-    holdCount += 1;
+    historyOnlyCount += 1;
     console.log(
-      `[seed:hold] ${item.kin_doc_id} -> ${item.question_title}`,
+      `[seed:history] ${item.kin_doc_id} -> ${item.question_title}`,
     );
   }
 }
 
 console.log(
-  `[완료] Firestore 최신 seed: 질문 ${items.length}개 `
-  + `(정상 발행 ${publishedCount}, 보류 ${holdCount})`,
+  `[완료] Firestore 통합 history seed: 질문 ${items.length}개 `
+  + `(WordPress 연결 ${withArticleCount}, history 전용 ${historyOnlyCount})`,
 );
