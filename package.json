@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings=0",
-    "test:regression": "tsx scripts/editorial-regression-test.ts && node scripts/kin-self-answer-regression.mjs && node scripts/kin-notion-title-dedupe-regression.mjs && node scripts/content-registry-regression.mjs",
+    "test:regression": "tsx scripts/editorial-regression-test.ts && node scripts/kin-self-answer-regression.mjs && node scripts/kin-notion-title-dedupe-regression.mjs && node scripts/content-registry-regression.mjs && node scripts/seo-title-brand-regression.mjs",
     "seed:content-registry": "node scripts/seed-content-registry.mjs"
   },
   "dependencies": {
