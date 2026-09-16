@@ -536,3 +536,14 @@ Firestore의 `kinQuestions`는 Notion의 보류/발행 상태를 동기화하는
 - Vercel, Firestore 저장 데이터, Notion 데이터, 직접 Focused Research에는 영향을 주지 않음
 
 자동 monitor workflow 자체에는 `concurrency`도 적용되어 있어 실행이 겹치지 않으며, Firestore history의 atomic claim/fail-closed 안전장치와 함께 동작합니다.
+
+### 자동 지식iN monitor 실행 빈도
+
+정기 자동 monitor는 한국시간(`Asia/Seoul`) 기준 하루 3회, 지정 시각에 실행합니다.
+
+- cron: `0 6,10,15 * * *`
+- 실행 시각: `06:00`, `10:00`, `15:00`
+- `KIN_AUTO_MONITOR_ENABLED=false`이면 예약 실행은 모두 skip
+- `Run workflow` 수동 실행은 계속 가능
+
+포스팅 후보가 너무 빠르게 쌓이지 않도록 기존 30분 간격(하루 48회)에서 업무 흐름에 맞춘 하루 3회로 낮춘 설정입니다.

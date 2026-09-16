@@ -156,6 +156,15 @@ assert.match(
   /workflow_dispatch:/,
 );
 
+assert.match(
+  workflow,
+  /cron:\s*['"]0 6,10,15 \* \* \*['"]/,
+);
+assert.match(
+  workflow,
+  /timezone:\s*['"]Asia\/Seoul['"]/,
+);
+
 console.log(
   "Firestore history 안전장치 회귀 테스트 통과: "
   + "fail-closed + atomic claim + concurrency + 3단계 유사도",
