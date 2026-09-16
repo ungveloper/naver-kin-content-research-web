@@ -158,7 +158,7 @@ assert.match(
 
 assert.match(
   workflow,
-  /cron:\s*['"]0 6,10,15 \* \* \*['"]/,
+  /cron:\s*['"]7 6,10,15 \* \* \*['"]/,
 );
 assert.match(
   workflow,
