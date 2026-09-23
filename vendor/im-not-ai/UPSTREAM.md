@@ -2,8 +2,8 @@
 
 - Upstream: https://github.com/epoko77-ai/im-not-ai
 - Version: 2.3.2
-- Commit: fe02c9cf34ae0cd40228932d758f1cf94d689c99
-- Quick Rules SHA256: 5ab8db1acf8404456b678a7c67d0443207accbd1a5d3e0038c380f5dcdc54eff
+- Commit: 92b2936956d65d62ff4b19b75cccad8e3429bf43
+- Quick Rules SHA256: d666078f5ac351d6b934bffb3eb0f22e12d50b952df15c0d42000821fa7250b4
 - License: MIT
 
 이 파일들은 scripts/sync-im-not-ai.mjs가 upstream main에서 자동 동기화합니다.
