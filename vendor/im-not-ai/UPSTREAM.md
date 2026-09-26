@@ -2,7 +2,7 @@
 
 - Upstream: https://github.com/epoko77-ai/im-not-ai
 - Version: 2.3.2
-- Commit: 92b2936956d65d62ff4b19b75cccad8e3429bf43
+- Commit: 2f3d943d08056b612a92e12bfb72ea94dd2acd18
 - Quick Rules SHA256: d666078f5ac351d6b934bffb3eb0f22e12d50b952df15c0d42000821fa7250b4
 - License: MIT
 
