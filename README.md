@@ -521,22 +521,6 @@ Firestore의 `kinQuestions`는 Notion의 보류/발행 상태를 동기화하는
 - `exclude`는 자동 제외, `warning`은 로그를 남기고 신규 처리, `new`는 정상 처리합니다.
 - warning으로 통과한 질문도 최초 처리 시 history에 claim되므로 동일 질문이 다음 실행에서 반복되지는 않습니다.
 
-### 자동 지식iN monitor 일시정지
-
-정기 자동 수집만 잠시 멈추고 싶을 때 GitHub Repository Variable `KIN_AUTO_MONITOR_ENABLED`를 사용합니다.
-
-- 위치: `Settings → Secrets and variables → Actions → Variables`
-- 이름: `KIN_AUTO_MONITOR_ENABLED`
-- 값 `true`: 예약된 cron 자동 실행
-- 값 `false`: 예약된 cron 실행은 job 단계에서 skip
-- 변수가 아직 없으면 기존 동작을 유지하기 위해 `true`와 동일하게 취급
-- `false` 상태에서도 Actions 화면의 `Run workflow` 수동 실행은 허용
-- 다시 `true`로 바꾸면 다음 예약 실행부터 자동 재개
-- 이 변수는 비밀값이 아니므로 Secret이 아니라 Repository Variable로 관리
-- Vercel, Firestore 저장 데이터, Notion 데이터, 직접 Focused Research에는 영향을 주지 않음
-
-자동 monitor workflow 자체에는 `concurrency`도 적용되어 있어 실행이 겹치지 않으며, Firestore history의 atomic claim/fail-closed 안전장치와 함께 동작합니다.
-
 ### 자동 지식iN monitor 실행 빈도
 
 정기 자동 monitor는 한국시간(`Asia/Seoul`) 기준 하루 3회, 정각 혼잡을 피한 07분에 실행합니다.
@@ -573,3 +557,16 @@ Firestore의 `kinQuestions`는 Notion의 보류/발행 상태를 동기화하는
 - 의미·수치·고유명사·제품명·모델명·URL은 보존하고 문체·리듬만 자연스럽게 다듬음
 
 이 정책은 im-not-ai의 의미 불변, 장르 유지, 과윤문 금지 원칙과 한국어의 기계적 병렬·상투적 결산·종결 반복을 줄이는 방향을 지식iN Q&A 문체에 맞게 적용한 것입니다.
+
+### 자동 지식iN monitor ON/OFF
+
+정기 자동 수집은 GitHub Repository Variable `KIN_AUTO_MONITOR_ENABLED` 하나로 제어합니다. 이 값은 민감정보가 아니므로 Secret이 아니라 반드시 `Settings → Secrets and variables → Actions → Variables`의 Repository Variable로 관리합니다.
+
+- 정확히 `true`: 예약 cron 실행 허용
+- `false`: 예약 cron job 차단
+- 변수 미설정: 안전하게 예약 cron job 차단
+- `TRUE`, `True`, 공백 포함 값 등 `true`가 아닌 값: 예약 cron job 차단
+- `Run workflow`로 시작한 `workflow_dispatch` 수동 실행은 값이 `false`여도 허용
+- 현재 예약 시각은 한국시간 기준 `06:07`, `10:07`, `15:07`
+
+중요: GitHub의 `schedule` 이벤트 자체는 Repository Variable로 끌 수 없습니다. 따라서 `false`여도 Actions 목록에는 예약된 workflow run이 생성되어 보일 수 있습니다. 정상이라면 실제 monitor job은 `Skipped`가 되고 checkout, npm, KIN 탐색 같은 실행 단계는 시작하지 않습니다. Actions 목록에서 예약 실행 항목 자체도 완전히 없애려면 workflow를 GitHub UI에서 Disable하거나 schedule 정의를 제거해야 합니다.

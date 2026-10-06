@@ -20,7 +20,9 @@ env:
 
 jobs:
   monitor:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.KIN_AUTO_MONITOR_ENABLED == '' || vars.KIN_AUTO_MONITOR_ENABLED == 'true' }}
+    # Scheduled monitor is fail-closed: only Repository Variable value "true" enables cron.
+    # workflow_dispatch remains available even while scheduled runs are paused.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.KIN_AUTO_MONITOR_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
