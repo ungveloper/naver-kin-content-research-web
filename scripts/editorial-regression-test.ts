@@ -380,31 +380,45 @@ const categoryContractSources = {
   research: readFileSync("lib/research.ts", "utf8"),
 };
 
-for (const required of [
-  "디지털",
-  "행정",
-  "집 관리",
-  "정리 보관",
-  "제품 사용",
-]) {
-  if (!categoryContractSources.topicReview.includes(required)) {
+for (const [sourceName, source, required] of [
+  [
+    "types",
+    categoryContractSources.types,
+    "export type FixedContentCategory = string;",
+  ],
+  [
+    "autoResearch",
+    categoryContractSources.autoResearch,
+    "export type AutoResearchCategory = string;",
+  ],
+  [
+    "topicReview",
+    categoryContractSources.topicReview,
+    "생활/실용정보 범위의 자연스러운 내부 편집 라벨",
+  ],
+  [
+    "research",
+    categoryContractSources.research,
+    "생활/실용정보",
+  ],
+] as const) {
+  if (!source.includes(required)) {
     failures += 1;
-    console.error(`[회귀 실패] 새 내부 분류가 topic-review에 없습니다: ${required}`);
+    console.error(
+      `[회귀 실패] ${sourceName}의 열린 생활/실용정보 category 계약 누락: ${required}`,
+    );
   }
 }
 
-for (const [sourceName, source] of Object.entries(categoryContractSources)) {
-  for (const forbidden of [
-    '"디지털 생활"',
-    '"생활 행정"',
-    '"정리·보관"',
-  ]) {
-    if (source.includes(forbidden)) {
-      failures += 1;
-      console.error(
-        `[회귀 실패] ${sourceName}에 이전 내부 분류 값이 남아 있습니다: ${forbidden}`,
-      );
-    }
+for (const forbidden of [
+  "const validCategories = new Set([",
+  "category가 고정 5개 범위를 벗어났습니다.",
+]) {
+  if (categoryContractSources.topicReview.includes(forbidden)) {
+    failures += 1;
+    console.error(
+      `[회귀 실패] topic-review에 고정 5개 category 제약이 다시 생겼습니다: ${forbidden}`,
+    );
   }
 }
 

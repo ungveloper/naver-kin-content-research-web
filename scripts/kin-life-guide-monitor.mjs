@@ -14,8 +14,11 @@ const NAVER_BASE_URL = process.env.NAVER_API_HUB_BASE_URL || "https://naverapihu
 const NOTION_VERSION = "2026-03-11";
 const SCORE_THRESHOLD = numberEnv("MONITOR_SCORE_THRESHOLD", 8);
 const MAX_PAGES_PER_RUN = integerEnv("MONITOR_MAX_PAGES_PER_RUN", 5, 1, 20);
-const SEEDS_PER_RUN = integerEnv("MONITOR_SEEDS_PER_RUN", 28, 1, 40);
-const SEARCH_DISPLAY = 50;
+const SEEDS_PER_RUN = integerEnv("MONITOR_SEEDS_PER_RUN", 36, 1, 60);
+const SEARCH_LANES = [
+  { label: "recent", sort: "date", display: 35 },
+  { label: "evergreen", sort: "sim", display: 20 },
+];
 const MAX_DEDUPE_CHECKS = 14;
 const MAX_RAW_SCORE = 14.5;
 const MAX_EVERGREEN_SCORE = 3;
@@ -25,38 +28,104 @@ const FOCUSED_RESEARCH_CLI = process.env.FOCUSED_RESEARCH_CLI || "./node_modules
 let notionPagePropertyPatchUnavailable = false;
 
 const seeds = [
-  ["휴대폰 백업 복원 데이터 이전", "디지털"],
-  ["아이폰 사진 파일 옮기기 백업", "디지털"],
-  ["갤럭시 백업 복원 Smart Switch", "디지털"],
-  ["앱 데이터 계정 동기화 초기화", "디지털"],
-  ["컴퓨터 파일 백업 복구 저장", "디지털"],
-  ["와이파이 블루투스 연결 설정 안됨", "디지털"],
-  ["카카오톡 대화 백업 복원 PC", "디지털"],
-  ["클라우드 사진 파일 동기화 문제", "디지털"],
+  ["휴대폰 사진 파일 옮기기", "디지털 활용"],
+  ["PDF 합치기 나누기 용량 줄이기", "디지털 활용"],
+  ["프린터 스캔 PDF 저장", "디지털 활용"],
+  ["USB 외장하드 파일 인식", "디지털 활용"],
+  ["이메일 첨부파일 저장 열기", "디지털 활용"],
+  ["와이파이 블루투스 연결 설정", "디지털 활용"],
+  ["스마트폰 알림 권한 설정", "디지털 활용"],
+  ["온라인 계정 로그인 기기 변경", "디지털 활용"],
 
-  ["대형폐기물 신청 배출 수거", "행정"],
-  ["분리수거 재활용 버리는 방법", "행정"],
-  ["주민센터 온라인 민원 신청 방법", "행정"],
-  ["전입신고 주소변경 생활 민원", "행정"],
-  ["우편 택배 반송 수령 생활", "행정"],
-  ["공공서비스 신청 준비물 생활", "행정"],
+  ["대형폐기물 신고 배출", "생활 행정"],
+  ["음식물쓰레기 과일 껍질 분리배출", "생활 행정"],
+  ["재활용 플라스틱 비닐 분리배출", "생활 행정"],
+  ["폐건전지 형광등 소형가전 배출", "생활 행정"],
+  ["주민센터 서류 발급 준비물", "생활 행정"],
+  ["무인민원발급기 이용", "생활 행정"],
+  ["전입신고 주소 변경", "생활 행정"],
+  ["공공시설 예약 이용 방법", "생활 행정"],
 
-  ["세탁기 청소 필터 배수 사용", "집 관리"],
-  ["에어컨 필터 청소 관리", "집 관리"],
-  ["냉장고 냉동실 보관 정리", "집 관리"],
-  ["집 곰팡이 습기 환기 관리", "집 관리"],
-  ["욕실 주방 청소 보관 관리", "집 관리"],
+  ["택배 오배송 주소 변경", "교통·이동·택배"],
+  ["우편 등기 수령 반송", "교통·이동·택배"],
+  ["편의점 택배 보내는 방법", "교통·이동·택배"],
+  ["기차 버스 분실물 찾기", "교통·이동·택배"],
+  ["주차 정산 이용 방법", "교통·이동·택배"],
+  ["교통카드 환불 잔액", "교통·이동·택배"],
+  ["이사 짐 포장 순서", "교통·이동·택배"],
+  ["공항 짐 보관 이용", "교통·이동·택배"],
 
-  ["이불 옷 보관 정리 방법", "정리 보관"],
-  ["식재료 냉장 냉동 보관 방법", "정리 보관"],
-  ["이사 짐 정리 보관 방법", "정리 보관"],
-  ["서류 사진 파일 정리 보관", "정리 보관"],
+  ["빨래 쉰내 냄새 건조", "주거·생활 관리"],
+  ["욕실 물때 곰팡이 청소", "주거·생활 관리"],
+  ["배수구 냄새 막힘", "주거·생활 관리"],
+  ["창문 결로 물방울 관리", "주거·생활 관리"],
+  ["매트리스 얼룩 냄새", "주거·생활 관리"],
+  ["벽지 테이프 자국 제거", "주거·생활 관리"],
+  ["주방 후드 기름때 청소", "주거·생활 관리"],
+  ["냉장고 냄새 성에 청소", "주거·생활 관리"],
 
-  ["제품 사용법 설정 초기화", "제품 사용"],
-  ["제품 연결 설치 사용 안됨", "제품 사용"],
-  ["충전 배터리 설정 사용 방법", "제품 사용"],
-  ["기기 교체 이전 초기 설정", "제품 사용"],
-  ["설명서 없이 설정 사용 방법", "제품 사용"],
+  ["채소 과일 냉장 보관", "식생활·주방"],
+  ["밥 빵 떡 냉동 보관 해동", "식생활·주방"],
+  ["쌀 잡곡 보관 벌레 예방", "식생활·주방"],
+  ["반찬 남은 음식 보관", "식생활·주방"],
+  ["밀폐용기 냄새 얼룩 제거", "식생활·주방"],
+  ["양념 조미료 보관 정리", "식생활·주방"],
+  ["도시락 보관 가져가기", "식생활·주방"],
+  ["김 견과류 눅눅 보관", "식생활·주방"],
+
+  ["옷 얼룩 세탁 제거", "의류·세탁"],
+  ["수건 냄새 세탁 건조", "의류·세탁"],
+  ["신발 세척 건조 냄새", "의류·세탁"],
+  ["패딩 니트 세탁 보관", "의류·세탁"],
+  ["흰옷 이염 세탁", "의류·세탁"],
+  ["옷 라벨 세탁기호", "의류·세탁"],
+  ["가방 모자 세척 보관", "의류·세탁"],
+  ["계절 옷 옷장 보관", "의류·세탁"],
+
+  ["에어프라이어 첫 사용 세척", "제품 활용"],
+  ["전기밥솥 설정 세척", "제품 활용"],
+  ["식기세척기 세제 필터", "제품 활용"],
+  ["커피머신 세척 사용", "제품 활용"],
+  ["로봇청소기 지도 초기화", "제품 활용"],
+  ["제습기 물통 필터", "제품 활용"],
+  ["가습기 세척 사용", "제품 활용"],
+  ["TV 리모컨 연결 설정", "제품 활용"],
+
+  ["PDF 서명 넣기", "문서·업무 실용"],
+  ["사진을 PDF로 만들기", "문서·업무 실용"],
+  ["엑셀 CSV 파일 열기", "문서·업무 실용"],
+  ["압축파일 풀기 만들기", "문서·업무 실용"],
+  ["파일 이름 정리 변경", "문서·업무 실용"],
+  ["영수증 보증서 정리", "문서·업무 실용"],
+  ["온라인 양식 파일 제출", "문서·업무 실용"],
+  ["문서 인쇄 여백 설정", "문서·업무 실용"],
+
+  ["도서관 회원증 대출 반납", "지역 생활"],
+  ["공공체육시설 예약", "지역 생활"],
+  ["공영주차장 이용 방법", "지역 생활"],
+  ["종량제봉투 판매소 찾기", "지역 생활"],
+  ["지역 분리배출 요일", "지역 생활"],
+  ["무인민원발급기 위치 이용", "지역 생활"],
+  ["우체국 등기 찾기", "지역 생활"],
+  ["공공자전거 이용 방법", "지역 생활"],
+
+  ["도서관 책 예약 연장", "여가·문화 실용"],
+  ["공연 티켓 모바일 입장", "여가·문화 실용"],
+  ["영화관 예매 취소 방법", "여가·문화 실용"],
+  ["전시 관람 예약 준비", "여가·문화 실용"],
+  ["캠핑 장비 보관 정리", "여가·문화 실용"],
+  ["여행 짐 싸기 체크", "여가·문화 실용"],
+  ["사진 인화 파일 준비", "여가·문화 실용"],
+  ["공공문화시설 이용", "여가·문화 실용"],
+
+  ["온라인 주문 옵션 변경", "소비자 실용정보"],
+  ["배송 전 주문 취소", "소비자 실용정보"],
+  ["제품 보증서 찾기", "소비자 실용정보"],
+  ["구매내역 영수증 확인", "소비자 실용정보"],
+  ["제품 모델명 확인 방법", "소비자 실용정보"],
+  ["소모품 규격 확인", "소비자 실용정보"],
+  ["제품 설명서 찾기", "소비자 실용정보"],
+  ["구매 후 초기 설정", "소비자 실용정보"],
 ];
 
 const hardExcludeGroups = {
@@ -80,25 +149,17 @@ const hardExcludeGroups = {
 };
 
 const areaTerms = {
-  "디지털": [
-    "휴대폰", "스마트폰", "아이폰", "갤럭시", "안드로이드", "컴퓨터", "노트북", "pc", "윈도우", "앱", "계정",
-    "백업", "복원", "동기화", "클라우드", "icloud", "파일", "사진", "데이터", "카카오톡", "와이파이", "블루투스",
-  ],
-  "행정": [
-    "대형폐기물", "폐기물", "분리수거", "재활용", "배출", "수거", "주민센터", "민원", "전입신고", "주소변경",
-    "신고", "신청", "우편", "택배", "공공", "구청", "시청", "동사무소",
-  ],
-  "집 관리": [
-    "세탁기", "냉장고", "에어컨", "청소", "필터", "배수", "욕실", "주방", "환기", "습기", "곰팡이", "건조",
-    "세척", "집안", "가전",
-  ],
-  "정리 보관": [
-    "보관", "정리", "수납", "냉장", "냉동", "이불", "옷", "식재료", "서류", "짐", "보관함", "정리함",
-  ],
-  "제품 사용": [
-    "사용법", "사용 방법", "설정", "초기화", "설치", "연결", "교체", "충전", "업데이트", "오류", "안됨", "안 돼",
-    "작동", "기기", "제품", "설명서",
-  ],
+  "디지털 활용": ["휴대폰", "스마트폰", "컴퓨터", "노트북", "pdf", "파일", "프린터", "스캔", "usb", "와이파이", "블루투스", "이메일", "계정", "사진"],
+  "생활 행정": ["폐기물", "쓰레기", "분리배출", "재활용", "주민센터", "민원", "전입신고", "공공시설", "종량제", "수거", "신고"],
+  "교통·이동·택배": ["택배", "우편", "등기", "배송", "반송", "수령", "주차", "교통카드", "기차", "버스", "이사", "공항"],
+  "주거·생활 관리": ["청소", "욕실", "곰팡이", "배수구", "결로", "매트리스", "벽지", "후드", "냉장고", "창틀", "냄새"],
+  "식생활·주방": ["채소", "과일", "냉장", "냉동", "해동", "쌀", "잡곡", "반찬", "밀폐용기", "양념", "도시락", "견과류"],
+  "의류·세탁": ["세탁", "빨래", "옷", "수건", "신발", "패딩", "니트", "이염", "세탁기호", "가방", "모자"],
+  "제품 활용": ["에어프라이어", "밥솥", "식기세척기", "커피머신", "로봇청소기", "제습기", "가습기", "리모컨", "제품", "설정", "필터"],
+  "문서·업무 실용": ["문서", "pdf", "서명", "csv", "엑셀", "압축파일", "영수증", "보증서", "인쇄", "파일"],
+  "지역 생활": ["도서관", "체육시설", "공영주차장", "종량제봉투", "분리배출", "무인민원", "우체국", "공공자전거"],
+  "여가·문화 실용": ["도서관", "공연", "티켓", "영화관", "전시", "캠핑", "여행", "인화", "문화시설"],
+  "소비자 실용정보": ["주문", "구매", "배송", "취소", "보증서", "구매내역", "모델명", "소모품", "설명서", "초기 설정"],
 };
 
 const problemTerms = [
@@ -144,11 +205,19 @@ async function main() {
 
   const raw = [];
   for (const [query, area] of selectedSeeds) {
-    try {
-      const items = await searchKin(query);
-      items.forEach((item, index) => raw.push({ ...item, seedQuery: query, seedArea: area, dateRank: index + 1 }));
-    } catch (error) {
-      console.warn(`[KIN monitor] 검색 실패: ${query} · ${error instanceof Error ? error.message : String(error)}`);
+    for (const lane of SEARCH_LANES) {
+      try {
+        const items = await searchKin(query, lane);
+        items.forEach((item, index) => raw.push({
+          ...item,
+          seedQuery: query,
+          seedArea: area,
+          searchLane: lane.label,
+          dateRank: index + 1,
+        }));
+      } catch (error) {
+        console.warn(`[KIN monitor] 검색 실패: ${query} · ${lane.label} · ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
 
@@ -157,11 +226,12 @@ async function main() {
     .filter((item) => !item.excluded)
     .filter((item) => item.scopeScore >= 2 && item.problemScore >= 1);
 
-  const clustered = clusterQuestions(unique)
+  const rankedClusters = clusterQuestions(unique)
     .map(scoreCluster)
     .filter((item) => item.totalScore >= SCORE_THRESHOLD)
-    .sort((a, b) => b.totalScore - a.totalScore)
-    .slice(0, MAX_DEDUPE_CHECKS);
+    .sort((a, b) => b.totalScore - a.totalScore);
+
+  const clustered = diversifyByArea(rankedClusters, MAX_DEDUPE_CHECKS);
 
   if (!clustered.length) {
     console.log(`[KIN monitor] 등록 후보 없음 · 원시 ${raw.length}건 / 중복·제외 후 ${unique.length}건`);
@@ -352,19 +422,44 @@ async function main() {
 }
 
 function rotatingSeedBatch() {
-  const batches = Math.ceil(seeds.length / SEEDS_PER_RUN);
-  const halfHourSlot = Math.floor(Date.now() / 1_800_000);
-  const batchIndex = halfHourSlot % batches;
-  const start = batchIndex * SEEDS_PER_RUN;
-  return seeds.slice(start, start + SEEDS_PER_RUN);
+  const target = Math.min(SEEDS_PER_RUN, seeds.length);
+  const slot = Math.floor(Date.now() / 1_800_000);
+  const byArea = new Map();
+
+  for (const seed of seeds) {
+    const area = seed[1];
+    if (!byArea.has(area)) byArea.set(area, []);
+    byArea.get(area).push(seed);
+  }
+
+  const areas = [...byArea.keys()];
+  const selected = [];
+  let round = 0;
+
+  while (selected.length < target) {
+    let added = false;
+    for (let offset = 0; offset < areas.length && selected.length < target; offset += 1) {
+      const area = areas[(slot + offset) % areas.length];
+      const bucket = byArea.get(area) || [];
+      if (!bucket.length) continue;
+      const seed = bucket[(slot + round + offset) % bucket.length];
+      if (selected.some(([query]) => query === seed[0])) continue;
+      selected.push(seed);
+      added = true;
+    }
+    if (!added) break;
+    round += 1;
+  }
+
+  return selected;
 }
 
-async function searchKin(query) {
+async function searchKin(query, lane) {
   const url = new URL(`${NAVER_BASE_URL}/search/v1/kin`);
   url.searchParams.set("query", query);
-  url.searchParams.set("display", String(SEARCH_DISPLAY));
+  url.searchParams.set("display", String(lane.display));
   url.searchParams.set("start", "1");
-  url.searchParams.set("sort", "date");
+  url.searchParams.set("sort", lane.sort);
 
   const response = await fetch(url, {
     headers: {
@@ -373,9 +468,9 @@ async function searchKin(query) {
       Accept: "application/json",
     },
   });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`NAVER ${response.status}: ${text.slice(0, 300)}`);
-  const data = safeJson(text);
+  const body = await response.text();
+  if (!response.ok) throw new Error(`NAVER ${response.status}: ${body.slice(0, 300)}`);
+  const data = safeJson(body);
   return Array.isArray(data?.items) ? data.items : [];
 }
 
@@ -621,8 +716,9 @@ function analyzeQuestion(item) {
 
   const areaScores = Object.entries(areaTerms).map(([area, terms]) => [area, countMatches(combined, terms)]);
   areaScores.sort((a, b) => b[1] - a[1]);
-  const [bestArea, areaHits] = areaScores[0] || [item.seedArea || "생활 가이드", 0];
-  const scopeScore = Math.min(4, areaHits >= 4 ? 4 : areaHits >= 2 ? 3 : areaHits === 1 ? 2 : 0);
+  const [matchedArea, areaHits] = areaScores[0] || [item.seedArea || "생활/실용정보", 0];
+  const bestArea = areaHits > 0 ? matchedArea : item.seedArea || "생활/실용정보";
+  const scopeScore = Math.min(4, areaHits >= 4 ? 4 : areaHits >= 2 ? 3 : areaHits === 1 ? 2 : item.seedArea ? 2 : 0);
 
   const problemHits = countMatches(combined, problemTerms);
   const hasQuestionMark = title.includes("?");
@@ -641,7 +737,7 @@ function analyzeQuestion(item) {
     title,
     description,
     excluded: false,
-    area: bestArea || item.seedArea || "생활 가이드",
+    area: bestArea || item.seedArea || "생활/실용정보",
     scopeScore,
     problemScore,
     evergreenScore,
@@ -703,6 +799,35 @@ function scoreCluster(cluster) {
       .slice(0, 5),
     matchedSeeds: seedQueries.slice(0, 6),
   };
+}
+
+function diversifyByArea(items, limit) {
+  const queues = new Map();
+
+  for (const item of items) {
+    const area = item.area || item.seedArea || "생활/실용정보";
+    if (!queues.has(area)) queues.set(area, []);
+    queues.get(area).push(item);
+  }
+
+  const areas = [...queues.keys()];
+  const selected = [];
+  let round = 0;
+
+  while (selected.length < limit) {
+    let added = false;
+    for (const area of areas) {
+      const item = (queues.get(area) || [])[round];
+      if (!item) continue;
+      selected.push(item);
+      added = true;
+      if (selected.length >= limit) break;
+    }
+    if (!added) break;
+    round += 1;
+  }
+
+  return selected;
 }
 
 function dedupeByUrlAndTitle(items) {

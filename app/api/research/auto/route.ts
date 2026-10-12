@@ -343,11 +343,16 @@ function chooseAnchorSeed(title: string, seeds: AutoResearchSeed[]) {
 
 function inferInternalCategoryLabel(text: string) {
   const value = text.toLowerCase();
-  if (/(아이폰|갤럭시|스마트폰|휴대폰|컴퓨터|노트북|윈도우|맥북|앱|계정|백업|복원|동기화|와이파이|블루투스|파일|사진|저장공간|데이터)/.test(value)) return "디지털";
-  if (/(대형폐기물|폐가전|쓰레기|배출|신청|신고|주민센터|구청|시청|공공시설|서류|주소 변경|이사.*절차)/.test(value)) return "행정";
-  if (/(정리|수납|보관|옷장|이불|주방|식품|공간|습기|곰팡이.*보관)/.test(value)) return "정리 보관";
-  if (/(사용법|사용 방법|제품|기기|설정|설치|조립|소모품|필터 교체|충전기|리모컨)/.test(value)) return "제품 사용";
-  return "집 관리";
+  if (/(아이폰|갤럭시|스마트폰|휴대폰|컴퓨터|노트북|윈도우|앱|계정|백업|복원|동기화|와이파이|블루투스|파일|사진|pdf|프린터|스캔)/.test(value)) return "디지털 활용";
+  if (/(대형폐기물|폐가전|쓰레기|배출|주민센터|구청|시청|민원|전입신고|공공시설|종량제|분리배출)/.test(value)) return "생활 행정";
+  if (/(택배|우편|등기|배송|반송|수령|교통카드|주차|기차|버스|이사)/.test(value)) return "교통·이동·택배";
+  if (/(세탁|빨래|옷|신발|패딩|니트|수건|이염)/.test(value)) return "의류·세탁";
+  if (/(식재료|냉장|냉동|반찬|쌀|잡곡|주방|밀폐용기|해동|도시락)/.test(value)) return "식생활·주방";
+  if (/(청소|곰팡이|습기|결로|욕실|배수구|창틀|매트리스|소파|벽지|집안)/.test(value)) return "주거·생활 관리";
+  if (/(사용법|제품|기기|설정|설치|필터|리모컨|커피머신|에어프라이어|로봇청소기)/.test(value)) return "제품 활용";
+  if (/(문서|서류|인쇄|영수증|보증서|압축파일|csv|엑셀)/.test(value)) return "문서·업무 실용";
+  if (/(도서관|공연|영화|전시|캠핑|여행|문화시설)/.test(value)) return "여가·문화 실용";
+  return "생활/실용정보";
 }
 
 
@@ -879,12 +884,12 @@ function isDiverseFromBatch(candidate: ProblemCluster, selected: ProblemCluster[
 function selectReviewClusters(clusters: ProblemCluster[], count: number) {
   const selected: ProblemCluster[] = [];
   const byPriority = [...clusters].sort((a, b) => b.discoveryPriority - a.discoveryPriority);
-  const categoryCounts = new Map<AutoResearchCategory, number>();
+  const categoryCounts = new Map<string, number>();
 
   // 이 단계는 최종 주제 선정이 아니라 프롬프트 크기를 제한하기 위한 샘플링입니다.
-  // 앞단은 넓게 열어 두되 한 영역이 전부를 차지하지 않도록 영역당 최대 3개까지만 우선 담습니다.
+  // category는 열린 라벨이지만 한 라벨이 전부를 차지하지 않도록 라벨당 최대 2개까지만 우선 담습니다.
   for (const cluster of byPriority) {
-    if ((categoryCounts.get(cluster.category) || 0) >= 3) continue;
+    if ((categoryCounts.get(cluster.category) || 0) >= 2) continue;
     if (!isDiverseFromBatch(cluster, selected)) continue;
     selected.push(cluster);
     categoryCounts.set(cluster.category, (categoryCounts.get(cluster.category) || 0) + 1);
@@ -930,7 +935,7 @@ export async function POST(request: NextRequest) {
   const searchPerformance = (Array.isArray(body.searchPerformance) ? body.searchPerformance : []).slice(0, 500);
   const now = kstNow();
   const createdAt = new Date().toISOString();
-  const rotatingSeeds = getAutoResearchSeeds(now, offset, 5);
+  const rotatingSeeds = getAutoResearchSeeds(now, offset, 8);
   const errors: string[] = [];
 
   const usedTopics = (Array.isArray(body.usedTopics) ? body.usedTopics : [])

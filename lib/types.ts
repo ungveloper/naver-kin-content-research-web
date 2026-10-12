@@ -28,12 +28,11 @@ export type ExperimentPlan = {
 
 export type ReviewLevel = "high" | "medium" | "low";
 
-export type FixedContentCategory =
-  | "디지털"
-  | "행정"
-  | "집 관리"
-  | "정리 보관"
-  | "제품 사용";
+/**
+ * 내부 편집용 생활/실용정보 라벨.
+ * WordPress 공개 카테고리를 제한하는 enum이 아닙니다.
+ */
+export type FixedContentCategory = string;
 
 export type ResearchEvidenceItem = {
   source: "naver-kin" | "naver-cafe" | "naver-blog" | "naver-news" | "naver-web";

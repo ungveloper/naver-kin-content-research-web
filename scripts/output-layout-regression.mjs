@@ -54,7 +54,7 @@ for (const marker of [
   "## 원문 질문",
   "## 추천 답변",
   "[[게시 후 실제 글 URL]]",
-  "생활 가이드",
+  "생활/실용정보",
 ]) {
   assert.ok(block.includes(marker), `출력 구조 계약 누락: ${marker}`);
 }
