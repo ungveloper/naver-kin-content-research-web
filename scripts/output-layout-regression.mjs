@@ -89,7 +89,38 @@ assert.equal(
   "정상적인 첫 heading 안내 문장이 사라졌습니다.",
 );
 
+const articleHeadingIndex = lines.indexOf(section1);
+const articleFenceIndex = lines.indexOf("\\`\\`\\`markdown");
+const bodyStartIndex = lines.indexOf("<!-- 게시용 본문 시작 -->");
+const bodyEndIndex = lines.indexOf("<!-- 게시용 본문 끝 -->");
+
+assert.ok(articleHeadingIndex >= 0, "#1 게시용 본문 heading이 없습니다.");
+assert.ok(
+  articleFenceIndex > articleHeadingIndex,
+  "#1 게시용 본문 heading 뒤에 markdown 코드 블록이 열려야 합니다.",
+);
+assert.ok(
+  bodyStartIndex > articleFenceIndex,
+  "게시용 본문 시작 주석은 #1 markdown 코드 블록 안에 있어야 합니다.",
+);
+assert.ok(
+  bodyEndIndex > bodyStartIndex,
+  "게시용 본문 끝 주석 위치가 잘못되었습니다.",
+);
+assert.equal(
+  lines[bodyEndIndex + 1],
+  "\\`\\`\\`",
+  "게시용 본문 끝 주석 직후 #1 markdown 코드 블록을 닫아야 합니다.",
+);
+assert.equal(
+  block.includes(
+    "“# 1. 게시용 본문”은 일반 Markdown으로 화면에 그대로 렌더링한다. 본문 전체를 복사용 코드 블록으로 만들지 않는다.",
+  ),
+  false,
+  "기존 #1 코드 블록 금지 정책이 남아 있습니다.",
+);
+
 console.log(
   "KIN 뉴스형 출력 구조 회귀 테스트 통과: "
-  + "canonical 4섹션 + malformed line 제거 + 정상 안내 문장 보존",
+  + "canonical 4섹션 + #1 markdown code block + #2/#3/#4 기존 code block 계약",
 );
