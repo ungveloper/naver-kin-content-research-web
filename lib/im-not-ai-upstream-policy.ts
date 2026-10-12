@@ -3,8 +3,8 @@
 export const IM_NOT_AI_UPSTREAM_SOURCE = {
   repository: "https://github.com/epoko77-ai/im-not-ai",
   version: "2.3.2",
-  commit: "2f3d943d08056b612a92e12bfb72ea94dd2acd18",
-  quickRulesSha256: "d666078f5ac351d6b934bffb3eb0f22e12d50b952df15c0d42000821fa7250b4",
+  commit: "b37e0206d31fffd9149bf57168d4d62eb2086bee",
+  quickRulesSha256: "7a8e66c7b9326c1df7413f7a5662d69e89907591e16ba740e5746bf01f544b85",
   license: "MIT",
 } as const;
 
