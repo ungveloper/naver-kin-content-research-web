@@ -570,3 +570,16 @@ Firestore의 `kinQuestions`는 Notion의 보류/발행 상태를 동기화하는
 - 현재 예약 시각은 한국시간 기준 `06:07`, `10:07`, `15:07`
 
 중요: GitHub의 `schedule` 이벤트 자체는 Repository Variable로 끌 수 없습니다. 따라서 `false`여도 Actions 목록에는 예약된 workflow run이 생성되어 보일 수 있습니다. 정상이라면 실제 monitor job은 `Skipped`가 되고 checkout, npm, KIN 탐색 같은 실행 단계는 시작하지 않습니다. Actions 목록에서 예약 실행 항목 자체도 완전히 없애려면 workflow를 GitHub UI에서 Disable하거나 schedule 정의를 제거해야 합니다.
+
+## ChatGPT Pro 뉴스형 출력 레이아웃
+
+`news-content-research-web`의 최종 응답 레이아웃을 참고하되, 지식iN 리서치의 데이터 구성은 변경하지 않습니다.
+
+- `# 1. 게시용 본문`: 일반 Markdown
+- `# 2. 대표 이미지 생성 프롬프트`: text 코드 블록 1개
+- `# 3. Rank Math SEO 패키지`: 각 필드의 값만 개별 text 코드 블록
+- `# 4. 네이버 지식iN 답변 추천`: 원문 질문은 일반 Markdown, 추천 답변만 text 코드 블록
+- 뉴스 앱 전용 편집자 검증 섹션은 KIN 출력에 추가하지 않음
+- 기존 SEO title ` - 3분 전`, `생활 가이드`, 지식iN 답변/링크 정책은 그대로 유지
+
+이번 변경은 최종 응답의 화면 포장/렌더링 계약만 정리하며, 본문과 각 데이터 값의 의미는 변경하지 않습니다.
