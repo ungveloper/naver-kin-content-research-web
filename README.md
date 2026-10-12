@@ -583,3 +583,17 @@ Firestore의 `kinQuestions`는 Notion의 보류/발행 상태를 동기화하는
 - 기존 SEO title ` - 3분 전`, `생활 가이드`, 지식iN 답변/링크 정책은 그대로 유지
 
 이번 변경은 최종 응답의 화면 포장/렌더링 계약만 정리하며, 본문과 각 데이터 값의 의미는 변경하지 않습니다.
+
+
+### 뉴스형 출력 레이아웃 canonical 복구 v5
+
+v4의 실패는 실제 malformed 중복이 남았다는 뜻이 아니라, 검사용 substring `# 1. 게시용 본문”이어야 한다.`가 정상 안내 문장 안에도 포함되어 자기 자신을 실패시킨 것이 원인이었습니다.
+
+v5는 최종 출력 규격 전체를 canonical block으로 교체한 뒤, substring이 아닌 줄 단위 형태로만 legacy malformed fragment를 검사합니다.
+
+- KIN 상위 출력 heading 4개 각각 정확히 1개
+- 게시용 본문은 일반 Markdown
+- 대표 이미지 프롬프트는 text 코드 블록 1개
+- Rank Math 값은 필드별 개별 text 코드 블록
+- 지식iN 추천 답변만 text 코드 블록
+- 기존 SEO title ` - 3분 전`, 생활 가이드, 지식iN 링크 정책 유지
