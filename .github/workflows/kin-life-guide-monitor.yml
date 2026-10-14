@@ -2,8 +2,8 @@ name: KIN Life Guide Monitor
 
 on:
   schedule:
-    # GitHub Actions의 매시 정각 혼잡을 피하면서 30분 간격으로 07/37분에 실행합니다.
-    - cron: '7 6,10,15 * * *'
+    # 한국시간 기준 하루 5회 실행하며, 정각 혼잡을 피하기 위해 07분에 시작합니다.
+    - cron: '7 6,10,12,15,18 * * *'
       timezone: 'Asia/Seoul'
   workflow_dispatch:
 

@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const workflow = fs.readFileSync(".github/workflows/kin-life-guide-monitor.yml", "utf8");
+const readme = fs.readFileSync("README.md", "utf8");
+const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const expected = "7 6,10,12,15,18 * * *";
+const schedules = [...workflow.matchAll(/^\s*-\s*cron:\s*['"]([^'"]+)['"]\s*$/gm)];
+assert.equal(schedules.length, 1, "KIN 스케줄은 cron 항목 하나여야 합니다.");
+assert.equal(schedules[0][1], expected, "예약 시간이 하루 다섯 번인지 확인하세요.");
+const [minute, hours, ...other] = schedules[0][1].split(" ");
+assert.equal(minute, "7");
+assert.equal(hours.split(",").length, 5);
+assert.deepEqual(hours.split(",").map(Number), [6, 10, 12, 15, 18]);
+assert.deepEqual(other, ["*", "*", "*"]);
+assert.match(workflow, /timezone:\s*['"]Asia\/Seoul['"]/);
+assert.match(workflow, /workflow_dispatch:/);
+assert.match(workflow, /KIN_AUTO_MONITOR_ENABLED/);
+assert.match(workflow, /github\.event_name\s*==\s*'workflow_dispatch'/);
+assert.match(workflow, /cancel-in-progress:\s*false/);
+assert.match(readme, /하루 5회/);
+assert.ok(readme.includes(expected));
+assert.ok(readme.includes("`06:07`, `10:07`, `12:07`, `15:07`, `18:07`"));
+assert.ok(packageJson.scripts["test:regression"].includes("node scripts/kin-monitor-schedule-regression.mjs"));
+console.log("KIN 예약 스케줄 회귀 테스트 통과: 한국시간 매일 5회, 기존 3회 유지 + 12:07·18:07 추가, 자동 토글·수동 실행 유지");
