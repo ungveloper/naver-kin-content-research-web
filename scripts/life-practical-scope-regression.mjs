@@ -50,19 +50,15 @@ for (const forbidden of [
   assert.equal(topic.includes(forbidden), false, `#1 코드블록 충돌 규칙 잔존: ${forbidden}`);
 }
 
-assert.equal(
-  topic.split("standalone-post의 fenced code block은 총 9개다").length - 1,
-  2,
-  "topic-review 두 출력 경로 모두 9개 fenced block 계약이어야 합니다.",
-);
-
-assert.equal(
-  topic.split("# 1. 게시용 본문\n\n\\`\\`\\`markdown\n<!-- 게시용 본문 시작 -->").length - 1,
-  2,
-  "topic-review 두 출력 경로 모두 #1 markdown code block이어야 합니다.",
-);
+const layout = fs.readFileSync("lib/output-layout.ts", "utf8");
+assert.ok(layout.includes("# 2. 게시 전 확인 자료"));
+assert.ok(layout.includes("# 5. 네이버 지식iN 답변 추천"));
+assert.equal((topic.match(/\$\{KIN_OUTPUT_LAYOUT_CONTRACT\}/g) || []).length, 2,
+  "직접 URL과 번호 선택 모두 공통 5섹션을 사용해야 합니다.");
+assert.ok(!layout.includes("standalone-post의 fenced code block은 총 9개다"));
+assert.ok(layout.includes("#1과 #2에는 코드 블록을 만들지 않는다."));
 
 console.log(
   "생활/실용정보 통합 회귀 테스트 통과: "
-  + "열린 category + 11개 예시 scope + 80개 이상 KIN seed + #1 markdown code block",
+  + "열린 category + 11개 예시 scope + 80개 이상 KIN seed + 뉴스형 5섹션",
 );
