@@ -55,8 +55,9 @@ assert.ok(layout.includes("# 2. 게시 전 확인 자료"));
 assert.ok(layout.includes("# 5. 네이버 지식iN 답변 추천"));
 assert.equal((topic.match(/\$\{KIN_OUTPUT_LAYOUT_CONTRACT\}/g) || []).length, 2,
   "직접 URL과 번호 선택 모두 공통 5섹션을 사용해야 합니다.");
-assert.ok(!layout.includes("standalone-post의 fenced code block은 총 9개다"));
-assert.ok(layout.includes("#1과 #2에는 코드 블록을 만들지 않는다."));
+assert.ok(layout.includes("전체 코드 블록은 총 9개"));
+assert.ok(layout.includes("#2에는 코드 블록을 만들지 않고 일반 Markdown으로 작성한다."));
+assert.ok(layout.includes("markdown 언어 지정 코드 블록을 정확히 하나"));
 
 console.log(
   "생활/실용정보 통합 회귀 테스트 통과: "

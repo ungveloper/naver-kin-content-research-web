@@ -224,11 +224,12 @@ export const FINAL_OUTPUT_POLISH_POLICY = String.raw`
 5. 코드 블록·최종 형식
 - 값이 들어 있는 코드 블록 앞에 빈 코드 블록을 하나 더 출력하지 않는다.
 - 내용 없는 fenced code block은 단 하나도 허용하지 않는다. 빈 블록을 먼저 만들고 다음 블록에 값을 넣는 출력은 형식 실패다.
-- 각 복사용 블록은 text 언어 지정 fenced block으로 한 번만 열고 내용 뒤에서 한 번만 닫는다. 별도의 빈 fenced block을 먼저 만들지 않는다.
+- #1 WordPress 본문은 markdown 언어 지정 fenced block 하나로 묶는다. # 1. 게시용 본문 제목 바깥 아래에서 열고, <!-- 게시용 본문 시작 -->부터 <!-- 게시용 본문 끝 -->까지 H1·H2·표·출처를 모두 포함한 뒤 닫는다. 첫 Markdown 원문부터 끝 주석까지 분리·렌더링하지 않는다.
+- #3 이미지, #4 SEO 값 6개, #5 지식iN 답변은 각각 text 언어 지정 fenced block으로 한 번만 열고 닫는다. 별도의 빈 블록을 만들지 않는다.
 - 대표 이미지 프롬프트는 코드 블록 1개만 출력한다.
 - Rank Math의 각 값도 각 항목당 내용이 들어 있는 코드 블록 1개만 출력한다.
 - 지식iN 추천 답변도 내용이 들어 있는 코드 블록 1개만 출력한다.
-- standalone-post #1~#5 전체 기준으로 text 코드 블록은 정확히 8개다: 대표 이미지 1 + Rank Math 6 + 지식iN 답변 1.
+- standalone-post 전체 9개 코드 블록: #1 WordPress 본문 markdown 1개 + #3 대표 이미지 text 1개 + #4 Rank Math text 6개 + #5 지식iN 답변 text 1개. #2는 일반 Markdown이며 코드 블록이 없다.
 - 최종 응답에는 최종본만 보여주고, "아래는 수정본입니다" 같은 안내문을 앞뒤에 붙이지 않는다.
 - 최종 문자열에서 U+200B/U+200C/U+200D/U+2060/U+FEFF를 제거하고, 추적 파라미터가 남은 URL이 없는지 확인한다.
 

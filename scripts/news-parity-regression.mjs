@@ -26,7 +26,9 @@ for (const s of [
   '### 공식 자료', '### 추가 참고자료',
 ]) assert.ok(article.includes(s), 'WordPress 완성 본문 누락: '+s);
 assert.ok(article.indexOf('<!-- 게시용 본문 끝 -->') > article.indexOf('## 출처 및 참고자료'));
-assert.ok(!article.includes('```'), '#1에는 code fence 불가');
+assert.match(article, /# 1\. 게시용 본문\n\n```markdown\n<!-- 게시용 본문 시작 -->/, '#1은 markdown 코드 블록 하나로 시작');
+assert.match(article, /<!-- 게시용 본문 끝 -->\n```\s*$/, '#1 전체는 끝 주석 이후 코드 블록 닫힘');
+assert.equal((article.match(/```/g)||[]).length,2,'#1 안에는 여닫는 펜스 한 쌍만 허용');
 assert.ok(!review.includes('```'), '#2에는 code fence 불가');
 for (const s of [
   '## 원 질문·문제 맥락 검증', '## 검색 의도 및 SEO 검증',
@@ -44,7 +46,7 @@ assert.ok(kin.includes('## 추천 답변'));
 assert.ok(kin.includes('[[게시 후 실제 글 URL]]'));
 assert.ok(image.includes('[대표 이미지 생성 프롬프트]'));
 assert.equal((contract.match(/```text/g)||[]).length,8,'#3 이미지 1 + #4 SEO 6 + #5 KIN 1');
-assert.equal((contract.match(/```/g)||[]).length,16,'총 8개 완결된 코드 블록만 허용');
+assert.equal((contract.match(/```/g)||[]).length,18,'총 9개 완결된 코드 블록만 허용 (#1 markdown 1 + text 8)');
 
 // All Markdown table headers in the rendered template must have valid, contiguous
 // pipe separators and consistent column counts, unlike the user's broken tables.
